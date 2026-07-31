@@ -57,6 +57,10 @@ python3 -m venv .venv
 
 ## 설치와 첫 사용
 
+> 처음이라면 **[사용 가이드](https://claude.ai/code/artifact/8fd1d591-3d8e-43a9-862e-b9a8bf7564eb)**
+> 를 먼저 보세요. 설치부터 첫 결과물까지 한 사이클을 따라가면서, 각 단계에서 무엇을 판단해야
+> 하는지와 판정 결과를 어떻게 읽는지 설명합니다.
+
 ```
 /plugin marketplace add heesun-woodi/woodi-plugins
 /plugin install product-mockup@woodi-plugins
