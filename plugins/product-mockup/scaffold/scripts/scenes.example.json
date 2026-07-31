@@ -1,0 +1,115 @@
+{
+  "_comment": "Example scenes.json for composite.py. Every number below is transcribed verbatim from the reference project this kit was extracted from — an 8-scene wall-calendar run across living_room / study / kitchen_dining / church_office variants, with src_rect values taken from the composite report that recorded what was actually used. They are real, verified values, kept here so you can see the shape of a working config. Copy this file per project and replace the paths and coordinates with your own.",
+
+  "_where_to_put_the_copy": "Put your copy at the PROJECT ROOT (next to source/, scenes/, final/) — NOT in scripts/. composite.py resolves every relative path in this file against the config file's own directory, so a copy sitting in scripts/ would resolve source/design_full.png to scripts/source/design_full.png and fail quietly. Same rule for generate_scenes.py's project.json.",
+
+  "_see_also": "composite.py's module docstring documents every key. The product-mockup skill's review-checklist reference explains how to choose occluders[].mode — ask Claude to open it. scripts/probe_occluder.py measures the t0/softness values for \"soft\" mode instead of guessing them.",
+
+  "paths": {
+    "src_path": "source/design_full.png",
+    "scene_dir": "scenes",
+    "out_dir": "final",
+    "evidence_dir": "final/_evidence"
+  },
+
+  "landmarks": {
+    "_comment": "page/content_bottom are required. grid_top/grid_bottom are optional and only used by evidence_crop() to know which vertical band to zoom into for the fidelity check; date_face_top is not read by code, it's just documented here because src_rect below is derived from it.",
+    "page": [11, 6, 1466, 2542],
+    "content_bottom": 2512,
+    "date_face_top": 1296,
+    "grid_top": 1306,
+    "grid_bottom": 2388
+  },
+
+  "scenes": {
+    "kitchen_dining_a": {
+      "quad_rect": [547, 352, 1334],
+      "band": [-26, 34],
+      "light_sigma_frac": 0.055,
+      "light_clip": [0.40, 1.75],
+      "grain": 1.0,
+      "orig_bottom": 1580,
+      "erase_pad": 58,
+      "drop_shadow": {"strength": 0.30, "sigma": 13, "dy": 9, "dx": 7}
+    },
+    "living_room_b": {
+      "quad": [[559, 368], [1498, 243], [1479, 2102], [546, 2004]],
+      "band": [-30, 40],
+      "light_sigma_frac": 0.055,
+      "light_clip": [0.40, 1.75],
+      "grain": 1.0
+    },
+    "church_office_a": {
+      "quad_rect": [507, 544, 1301],
+      "band": [-30, 40],
+      "light_sigma_frac": 0.055,
+      "light_clip": [0.40, 1.75],
+      "grain": 1.0,
+      "orig_bottom": 1801,
+      "erase_pad": 58,
+      "drop_shadow": {"strength": 0.26, "sigma": 12, "dy": 8, "dx": 0}
+    },
+    "living_room_a": {
+      "quad_rect": [601, 696, 1101],
+      "band": [-28, 30],
+      "light_sigma_frac": 0.055,
+      "light_clip": [0.40, 1.75],
+      "grain": 1.0,
+      "orig_bottom": 1531,
+      "erase_pad": 50,
+      "drop_shadow": {"strength": 0.24, "sigma": 11, "dy": 7, "dx": 6}
+    },
+    "study_a": {
+      "quad": [[738, 479], [1500, 465], [1489, 1813], [741, 1805]],
+      "band": [-24, 78],
+      "light_sigma_frac": 0.055,
+      "light_clip": [0.40, 1.85],
+      "grain": 1.0,
+      "occluders": [
+        {
+          "poly": [[1432, 1546], [1560, 1543], [1560, 1700], [1430, 1686],
+                   [1412, 1670], [1399, 1641], [1385, 1614], [1379, 1597],
+                   [1390, 1578], [1409, 1557]],
+          "mode": "auto", "thresh": 168, "feather": 1.3,
+          "shadow": {"strength": 0.26, "sigma": 11, "dy": 13, "dx": -3}
+        }
+      ]
+    },
+    "study_b": {
+      "_comment": "only the DATE FACE sub-rect is replaced; the scene's own art panel and its twin-wire spring stay untouched.",
+      "_src_rect_comment": "Height is 1314, NOT the 1252 rows the scan actually has left below date_face_top (2548 - 1296 + 6). This is the aspect-ratio trap the guide warns about, and it is worth understanding before you copy this pattern: the generator drew this date face TALLER than the real page, so mapping the scan's remaining 1252 rows onto the quad would stretch the type 4.95% vertically. Instead hand the warp a rect whose height matches the QUAD's true aspect, so the scale stays isotropic and the type is undistorted; the rows past the scan's last row come back as paper white from build_source(), i.e. the page just keeps a slightly deeper bottom margin - which real printed calendars have anyway. How 1314 was derived: the scene's own art panel (source rows 6..1296, which is NOT being replaced) pins the generator's scale, and extending that homography down to the measured paper bottom gives the row count. Do NOT take the number from an isotropic solver search - on this project that search pinned against its own upper bound (1381) and was unusable.",
+      "quad": [[697, 1098], [1524, 1086], [1516, 1904], [688, 1840]],
+      "src_rect": [11, 1296, 1466, 1314],
+      "band": [-22, 26],
+      "light_sigma_frac": 0.075,
+      "light_clip": [0.40, 1.85],
+      "grain": 1.0,
+      "occluders": [
+        {
+          "poly": [[1360, 1900], [1372, 1858], [1392, 1832], [1430, 1812],
+                   [1480, 1806], [1560, 1812], [1560, 1960], [1360, 1960]],
+          "mode": "soft", "metric": "lum", "t0": -196.0, "softness": 34.0, "roi_feather": 3.0
+        }
+      ]
+    },
+    "church_office_b": {
+      "_comment": "strongest keystone in the set; date face only, since the AI drew a plausible art panel of its own.",
+      "_src_rect_comment": "Height is 1345, not the scan's remaining 1252 rows - see study_b's _src_rect_comment for why (1252 here would stretch the type 7.4% vertically). This scene's keystone is strong enough that the two estimates disagree: the projective aspect estimate says 1331 and the art-panel landmark estimate says 1366, so we take the midpoint, 1345.",
+      "quad": [[343, 1222], [1138, 1198], [1151, 2058], [328, 1973]],
+      "src_rect": [11, 1296, 1466, 1345],
+      "band": [-24, 30],
+      "light_sigma_frac": 0.075,
+      "light_clip": [0.40, 1.80],
+      "grain": 1.0,
+      "occluders": [
+        {
+          "poly": [[742, 2100], [770, 2028], [800, 1962], [832, 1912],
+                   [900, 1888], [980, 1858], [1060, 1832], [1140, 1810],
+                   [1260, 1782], [1260, 2150], [742, 2150]],
+          "_comment": "the shelf's specular top rim dips to warm~33, so the ramp has to saturate below that or printed glyphs ghost through the wood; paper next to the edge peaks at warm~15, which t0=16 still zeroes. t0=24 was tried and is wrong: the rim only reaches alpha 0.64 and broken type shows through the shelf. probe_occluder.py finds this pair from the pixels - see the product-mockup skill's review-checklist reference.",
+          "mode": "soft", "metric": "warm", "t0": 16.0, "softness": 16.0, "roi_feather": 5.0
+        }
+      ]
+    }
+  }
+}

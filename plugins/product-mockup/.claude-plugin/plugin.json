@@ -1,0 +1,8 @@
+{
+  "name": "product-mockup",
+  "description": "Turn one flat product design file (packaging, print, poster, book cover, label, calendar, card, box art) into a set of lifestyle mockup photos, using a hybrid pipeline: an AI image model renders the scene (lighting, props, camera angle) and the original artwork pixels are then warped onto the product face through a 4-point perspective transform, so small type survives instead of being hallucinated. Bundles the product-mockup skill (six-stage pipeline, prompt patterns, review checklist, orchestration), four sub-agents (mockup-scene-designer, mockup-verifier, mockup-compositor, mockup-reviewer — generation and judgment deliberately kept in separate agents), and a /product-mockup command that scaffolds a working folder with the five pipeline scripts and example configs. REQUIRES a Gemini API key (GEMINI_API_KEY, https://aistudio.google.com/apikey) and a local Python env with google-genai, opencv-python-headless, numpy, and pillow.",
+  "version": "0.1.0",
+  "author": {
+    "name": "heesun-woodi"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "_comment": "Project config for generate_scenes.py. All paths are resolved relative to this file's own directory (so this file can live inside any project checkout). Copy this file to your project as e.g. project.json and edit the values below.",
+
+  "_where_to_put_the_copy": "Put your copy at the PROJECT ROOT (next to source/, scenes/, final/) — NOT in scripts/. Because paths resolve against the config file's own directory, a copy left in scripts/ would resolve source/design_full.png to scripts/source/design_full.png and fail. The root is also where generate_scenes.py looks for .env by default. Same rule for composite.py's scenes.json.",
+
+  "ref_image_1": "source/design_full.png",
+  "_ref_image_1_comment": "Full-resolution product design (the 'product shot' reference). PNG or JPEG.",
+
+  "ref_image_2": "source/detail_reference.jpg",
+  "_ref_image_2_comment": "Close-up photo of a physical detail the AI model tends to get wrong from image 1 alone (binding, hardware, stand mechanism, stitching, ...). JPEG or PNG.",
+
+  "ref_image_2_max_side": 1536,
+  "_ref_image_2_max_side_comment": "ref_image_2 is downscaled to this many px on its long side before upload (cached as <name>_resized.jpg next to it).",
+
+  "scenes_dir": "scenes",
+  "_scenes_dir_comment": "Where generated scene PNGs and metadata.json are written.",
+
+  "prompts_file": "prompts.json",
+  "_prompts_file_comment": "JSON file with a top-level {\"scenes\": [{\"id\", \"scene\", \"variant\", \"prompt\"}, ...]} list. Ask Claude to open the product-mockup skill's prompt-patterns reference for how to write prompts.",
+
+  "model": "gemini-3-pro-image"
+}
