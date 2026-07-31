@@ -61,13 +61,15 @@ python3 -m venv .venv
 > 를 먼저 보세요. 설치부터 첫 결과물까지 한 사이클을 따라가면서, 각 단계에서 무엇을 판단해야
 > 하는지와 판정 결과를 어떻게 읽는지 설명합니다.
 
+아래 `/`로 시작하는 것들은 **터미널이 아니라 Claude Code 입력창**에 그대로 칩니다.
+
 ```
 /plugin marketplace add heesun-woodi/woodi-plugins
 /plugin install product-mockup@woodi-plugins
 /reload-plugins
 ```
 
-그다음 작업할 폴더에서:
+그다음 작업할 폴더에서 Claude Code를 열고:
 
 ```
 /product-mockup
