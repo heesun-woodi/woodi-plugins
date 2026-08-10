@@ -1,0 +1,8 @@
+{
+  "name": "cro-problem-area-selection",
+  "description": "앰플리튜드 실쿼리로 문제영역을 데이터로 선정하는 CRO 워크숍 코칭 플러그인입니다. 비개발자 PM이 클로드와 1:1로 진행하는 4단계 워크플로우(STEP 1 비즈니스 KPI·공통 퍼널 → STEP 2 축 핵심 KPI·축 퍼널 → STEP 3 선행지표 상관 → STEP 4 임팩트 Gap·Uplift·확정)로, MCP 연결 확인과 퍼널 분모 확인을 하드 게이트로 두고 P1~P7 일곱 종의 마크다운 표를 순서대로 냅니다. 값은 실제 쿼리 결과만 쓰고 추정·보간을 금지하며, 합의·판정 열은 항상 공란으로 두어 사람이 채웁니다. 사용자 문제정의(BIAS·CRO 판정)와 솔루션 아이데이션·ICE 계산은 다루지 않습니다(각각 cro-problem-definition, 별도 백로그 워크숍 범위).",
+  "version": "0.1.0",
+  "author": {
+    "name": "heesun-woodi"
+  }
+}

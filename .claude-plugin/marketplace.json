@@ -25,6 +25,15 @@
         "name": "heesun-woodi"
       },
       "source": "./plugins/cro-problem-definition"
+    },
+    {
+      "name": "cro-problem-area-selection",
+      "description": "앰플리튜드 MCP 실쿼리로 실험할 문제영역을 데이터로 골라내는 CRO 워크숍 코칭 플러그인. 비개발자 PM이 클로드와 1:1로 진행하는 4단계 워크플로우(STEP 1 비즈니스 KPI 합의 + 설치→계약 공통 퍼널 → STEP 2 축 핵심 KPI 합의 + 축 퍼널 세분화 → STEP 3 핵심 KPI 선행지표 상관 검증 → STEP 4 임팩트 판단: Gap × 트래픽 → Uplift 4단계 → 계약수 증분 환산·확정)로 진행하며, MCP 연결 확인과 퍼널 분모 확인을 하드 게이트로 둡니다. 산출물은 시트에 손으로 옮겨 적는 마크다운 표 7종 — P1 비즈니스 KPI 합의(4열) · P2 퍼널 표(6열, 공통·축 공용) · P3 축 핵심 KPI 합의(4열) · P4 선행지표(4열) · P5 Gap(5열) · P6 Uplift(5열) · P7 확정 행(9열). 출력 계약을 정본으로 삼아 열 이름·순서·공식을 고정하고, 앰플리튜드 값은 실제 쿼리 결과만 쓰도록 강제해 추정·기억·보간을 차단하며, 합의·판정 열(P1·P3·P4·P7)은 항상 공란으로 남겨 사람이 채웁니다. 화면 스크린샷 진단·BIAS·사용자 문제정의는 범위 밖(cro-problem-definition 플러그인), 솔루션 아이데이션·ICE 점수도 범위 밖(금요일 가설 백로그 워크숍)입니다.",
+      "version": "0.1.0",
+      "author": {
+        "name": "heesun-woodi"
+      },
+      "source": "./plugins/cro-problem-area-selection"
     }
   ]
 }
