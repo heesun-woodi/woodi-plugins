@@ -1,15 +1,17 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "updated": "2026-08-14",
   "source": [
     "02a_goal-tree.md (초안)",
-    "habitfactory-cro-ssot/30_deliverables/problem-areas.md (2026-08-10 실측 확정)"
+    "habitfactory-cro-ssot/30_deliverables/problem-areas.md (2026-08-10 실측 확정)",
+    "sheet B축_문제정의 설계사 관점 섹션 (SP-N1~N11)"
   ],
   "axes": [
     {
       "axis": "A",
       "goal_metric": {
         "name": "상담신청율(=상담방 오픈률)",
+        "user_type": "고객",
         "selectable": false,
         "current": "54.8% (2026-07)",
         "note": "축 핵심 KPI — Result(R)로 선택 불가, 기대효과 참조용. 분모 정의 합의 보류(순서형 퍼널) 이슈 있음"
@@ -17,6 +19,7 @@
       "nodes": [
         {
           "name": "설치 → 회원가입 완료율",
+          "user_type": "고객",
           "selectable": true,
           "event": "[appboy]install → sign_up",
           "current": "51.3%",
@@ -24,6 +27,7 @@
         },
         {
           "name": "회원가입 → 마이데이터 인증 완료율",
+          "user_type": "고객",
           "selectable": true,
           "event": "sign_up → mydata_start_ins_result",
           "current": "93.4% × 98.8%",
@@ -31,6 +35,7 @@
         },
         {
           "name": "인증 → 보험분석 결과 도달률",
+          "user_type": "고객",
           "selectable": true,
           "event": "mydata_start_ins_result → mydata_completed_ins_result",
           "current": "85.5%",
@@ -38,6 +43,7 @@
         },
         {
           "name": "보험분석 결과 → 점검신청 진입률",
+          "user_type": "고객",
           "selectable": true,
           "event": "mydata_completed_ins_result → inspection_view_inspection",
           "current": "75.4%",
@@ -45,6 +51,7 @@
         },
         {
           "name": "결과 화면 체류·스크롤 도달률",
+          "user_type": "고객",
           "selectable": true,
           "event": null,
           "current": null,
@@ -52,6 +59,7 @@
         },
         {
           "name": "점검신청 진입 → 폼 제출 완료율",
+          "user_type": "고객",
           "selectable": true,
           "event": "inspection_view_inspection → start_inspection",
           "current": "78.7% (역산 추정)",
@@ -59,6 +67,7 @@
         },
         {
           "name": "점검신청 제출 → 상담방 오픈 도달률",
+          "user_type": "고객",
           "selectable": true,
           "event": "start_inspection → open_consult",
           "current": "99.8%",
@@ -66,6 +75,7 @@
         },
         {
           "name": "분석결과 플로팅 버튼 클릭률",
+          "user_type": "고객",
           "selectable": true,
           "event": "click_btn_float_ins_result",
           "current": "타율 78.9% · 지분 43.4%",
@@ -77,6 +87,7 @@
       "axis": "B",
       "goal_metric": {
         "name": "계약완료율(계약율)",
+        "user_type": "고객",
         "selectable": false,
         "current": "6.05%",
         "note": "축 핵심 KPI — Result(R)로 선택 불가. 최종 KPI(계약·초회보험료)도 동일하게 금지"
@@ -84,6 +95,7 @@
       "nodes": [
         {
           "name": "상담방 오픈 → 고객 첫 응답률",
+          "user_type": "고객",
           "selectable": true,
           "event": "open_consult → start_consult",
           "current": "62.2%",
@@ -91,6 +103,7 @@
         },
         {
           "name": "오픈 후 24h / 72h 내 첫 응답률",
+          "user_type": "고객",
           "selectable": true,
           "event": null,
           "current": null,
@@ -98,6 +111,7 @@
         },
         {
           "name": "상담사 첫 메시지 → 고객 응답 소요시간",
+          "user_type": "공통",
           "selectable": true,
           "event": null,
           "current": null,
@@ -105,6 +119,7 @@
         },
         {
           "name": "상담 시작 → 1차 정보 입력 진입률",
+          "user_type": "고객",
           "selectable": true,
           "event": "start_consult → start_info",
           "current": "55.0%",
@@ -112,6 +127,7 @@
         },
         {
           "name": "1차 정보 입력 진입 → 완료율",
+          "user_type": "고객",
           "selectable": true,
           "event": "start_info → completed_info_first",
           "current": "74.8%",
@@ -119,6 +135,7 @@
         },
         {
           "name": "1차 → 2차 정보 입력 완료율",
+          "user_type": "고객",
           "selectable": true,
           "event": "completed_info_first → completed_info_second",
           "current": "82.3% × 83.2%",
@@ -126,6 +143,7 @@
         },
         {
           "name": "입력 항목별 이탈 지점 (필드 단위)",
+          "user_type": "고객",
           "selectable": false,
           "event": null,
           "current": null,
@@ -133,6 +151,7 @@
         },
         {
           "name": "2차 정보 입력 → 견적 수령률",
+          "user_type": "고객",
           "selectable": true,
           "event": null,
           "current": null,
@@ -140,6 +159,7 @@
         },
         {
           "name": "2차 입력 완료 → 가계약 완료율",
+          "user_type": "고객",
           "selectable": true,
           "event": "completed_info_second → completed_contract_sub",
           "current": "34.8% (퍼널 최대 이탈)",
@@ -147,10 +167,51 @@
         },
         {
           "name": "정보 입력 완료율 (견적 도달)",
+          "user_type": "고객",
           "selectable": true,
           "event": null,
           "current": null,
           "note": "02a 초안의 B축 중간 목표지표 (가정 — 상관 검증은 start_info·completed_info_second로 대체됨)"
+        },
+        {
+          "name": "첫 메시지 템플릿 분기 사용률",
+          "user_type": "설계사",
+          "selectable": true,
+          "event": null,
+          "current": null,
+          "note": "⚠️확인필요 — 2026-08-14 스킬 제작 시 SP-N1·N3·N10 대응으로 제안한 후보 노드. 골트리 정본(02a)에 없고 현재 미측정(세팅 의존성). 워크숍·그루밍에서 확정 필요"
+        },
+        {
+          "name": "1차 입력 리마인드 발송률",
+          "user_type": "설계사",
+          "selectable": true,
+          "event": null,
+          "current": null,
+          "note": "⚠️확인필요 — 2026-08-14 스킬 제작 시 SP-N2·N9 대응으로 제안한 후보 노드. 골트리 정본(02a)에 없고 현재 미측정(세팅 의존성). 워크숍·그루밍에서 확정 필요"
+        },
+        {
+          "name": "설계사 간 구간 전환율 분산",
+          "user_type": "설계사",
+          "selectable": true,
+          "event": null,
+          "current": "1.52배 (상위 52.7% vs 하위 34.7%)",
+          "note": "⚠️확인필요 — 2026-08-14 스킬 제작 시 SP-N4 대응으로 제안한 후보 노드. 골트리 정본(02a)에 없고 현재 미측정(세팅 의존성). 워크숍·그루밍에서 확정 필요"
+        },
+        {
+          "name": "상담사 질문형 마디 발송률",
+          "user_type": "설계사",
+          "selectable": true,
+          "event": null,
+          "current": null,
+          "note": "⚠️확인필요 — 2026-08-14 스킬 제작 시 SP-N7 대응으로 제안한 후보 노드. 골트리 정본(02a)에 없고 현재 미측정(세팅 의존성). 워크숍·그루밍에서 확정 필요"
+        },
+        {
+          "name": "분석 자료 요약 첨부율",
+          "user_type": "설계사",
+          "selectable": true,
+          "event": null,
+          "current": null,
+          "note": "⚠️확인필요 — 2026-08-14 스킬 제작 시 SP-N8 대응으로 제안한 후보 노드. 골트리 정본(02a)에 없고 현재 미측정(세팅 의존성). 워크숍·그루밍에서 확정 필요"
         }
       ]
     }
