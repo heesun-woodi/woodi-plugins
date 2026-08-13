@@ -34,6 +34,15 @@
         "name": "heesun-woodi"
       },
       "source": "./plugins/cro-problem-area-selection"
+    },
+    {
+      "name": "cro-hypothesis-backlog",
+      "description": "문제정의 리스트(T4)를 입력받아 솔루션 아이데이션(BIAS 전술 매핑) → PSR 확장 공식 조립 → 1차(잠정) ICE 합산 → 가설 백로그 v1을 만드는 CRO 코칭 플러그인. 비개발자 PM이 클로드와 1:1로 진행하는 5단계 세션(STEP 0~5)으로, 입력 게이트(문제ID·고객 문제 필수 확인) · 스크린샷 전사 확인(솔루션이 화면 요소를 전제할 때 하드 게이트) · 앵커링 방지 게이트(참가자 개인 스코어링 완료 확인 후에만 H4 ICE 표 출력) 3종을 하드 게이트로 둡니다. 산출물은 대화에 렌더하는 표 4종 — H1 솔루션 카드(7열, 문제당 솔루션 2개 이상·BIAS 전술 매핑) · H2 Confidence 근거(5열, 6유형·데스크리서치 결과 포함) · H3 PSR 조립(6열, 확장 공식 한 문장) · H4 1차 ICE(9열, 합산식 최대 30·QuickWin 판정) — 과 착지 파일에 옮기는 2종 — H5a 백로그 메인 표(6열 구조 동결, 통합뷰 파싱 기준) · H5b 가설 상세 섹션(마크다운 블록, `hypothesis-backlog-{A|B}.md` 착지). 출력 계약 v1.0을 정본으로 삼아 ICE 합산식(최대 30)만 허용하고 곱셈·평균·Ease 추정·Variant 문구안·팀 점수 즉석 확정을 거절하며, Impact는 문제정의 리스트 값을 이관(재계산 금지)합니다. 가설 그루밍·Uplift 시뮬레이션·실험 설계서는 범위 밖(Sprint 1 소관).",
+      "version": "0.1.0",
+      "author": {
+        "name": "heesun-woodi"
+      },
+      "source": "./plugins/cro-hypothesis-backlog"
     }
   ]
 }

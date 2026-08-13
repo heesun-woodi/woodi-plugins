@@ -7,6 +7,7 @@ Claude Code plugins by [@heesun-woodi](https://github.com/heesun-woodi).
 | Plugin | Purpose |
 |---|---|
 | [`product-mockup`](./plugins/product-mockup/) | Turn one flat product design file into lifestyle mockup photos. An AI image model renders the room; the original artwork is then perspective-warped onto the product face, so small type stays pixel-exact instead of being hallucinated. Ships four sub-agents that keep generation and judgment in separate contexts. Requires a Gemini API key and a local Python env. |
+| [`cro-hypothesis-backlog`](./plugins/cro-hypothesis-backlog/) | 문제정의 리스트를 입력받아 솔루션 아이데이션(BIAS 전술 매핑) → PSR 가설 조립 → 1차(잠정) ICE 합산 → 가설 백로그 v1을 만드는 CRO 코칭 플러그인. 해빗팩토리 CRO 코칭 전용. |
 
 ## Install
 
