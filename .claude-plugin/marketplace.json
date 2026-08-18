@@ -45,6 +45,15 @@
       "source": "./plugins/cro-hypothesis-backlog"
     },
     {
+      "name": "cro-hypothesis-grooming",
+      "description": "백로그 가설의 근거를 채워 ICE 점수를 올리는 가설 그루밍 CRO 코칭 플러그인. **그루밍은 가설 문장을 바꾸는 작업이 아니라 같은 가설의 점수를 올리는 작업**입니다 — 수행 모드는 DEC-005 이관(솔루션 형태→Variant 후보 분리) → Problem Validation V1~V5(트래픽·퍼널 병목·벤치마크 Gap·정성 심각도(고객 인터뷰·VOC·합성사용자 인터뷰·CRO/BIAS 체크리스트)·기회 손실) → **Uplift 시뮬레이션 직접 계산**(Step A~H, 보수/기본/낙관 3시나리오, 잔여 퍼널 통과 후 최종 KPI 증분 금액 = Impact 판단 근거값) → Target 확정(벤치마크/MDE 근사/내부 Gap 3법 + 산출 근거 병기) → 대안 솔루션·Rationale 7유형(출처 3단계) → ICE 재산정 제안(참가자 재점수 선행 — 앵커링 방지 하드 게이트) → 노션 실험설계서 갱신 블록(G7a)·속성 변경 안내(G7b) 착지 순서의 게이트형 인터뷰(STEP 0~6)입니다. **실제 유저 인터뷰 보조 서브플로우**(타겟 선정 I1 → 유도 질문 금지 스크립트 I2 → transcript 분석·근거 추출 I3, 반증 포함)와 **코치용 그루밍 리뷰 모드**(19항목 Critical/Recommended/Optional 판정 + 품질 점수 + A~D 등급 + 보완 가이드)를 별도 진입점으로 제공합니다. Problem Validation 정량 근거는 Amplitude MCP 실쿼리 허용(골트리 정본값 우선, 실패 시 코치 확인으로 진행). 출력 계약 hg-output-contract v1.0 정본, ICE 합산식(최대 30)만 허용. 샘플사이즈·기간·MDE 정밀 계산·Variant 문구안·지표 3층 확정·실험 설계서는 실험 설계 소관, 새 가설 작성은 cro-hypothesis-backlog, 문제정의 재진단은 cro-problem-definition으로 라우팅.",
+      "version": "0.1.0",
+      "author": {
+        "name": "heesun-woodi"
+      },
+      "source": "./plugins/cro-hypothesis-grooming"
+    },
+    {
       "name": "meeting-notes",
       "description": "맥에서 회의를 녹음해 transcript와 회의록까지 만드는 파이프라인. macOS는 앱이 시스템 오디오를 직접 캡처할 수 없어(화면 기록 도구도 마이크만 잡는다) BlackHole 가상 장치와 CoreAudio 집합장치를 코드로 구성해 상대방 목소리와 내 목소리를 L/R 분리된 한 파일로 받는다 — 회의앱(줌·구글밋·팀즈) 종류를 가리지 않고 스피커로 나가는 모든 소리를 잡으며, 집합장치의 드리프트 보정 덕에 몇 시간짜리 녹음도 어긋나지 않는다. 녹음 종료 시 채널별 레벨을 측정해 무음 사고(에러 없이 몇 시간짜리 무음 파일이 만들어지는 이 파이프라인의 가장 흔한 실패)를 회의 직후에 잡고, rclone으로 클라우드에 자동 업로드한 뒤 Soniox async STT(화자분리·한영 혼용·고유명사 바이어싱)로 전사한다. 이후 토큰 단위 STT 결과의 문단 복원과 화자 이름 치환은 LLM이 아니라 코드가 결정적으로 처리해 원문 변형(드리프트)을 막고, LLM은 교정·화자 매핑 표 생성·유형별 회의록(회의록/강의/인터뷰/워크샵) 작성만 맡는다. 녹음 스크립트(rec start/stop/toggle), CoreAudio 장치 CLI, launchd 업로드 감시, STT 전 품질 검사, transcript 생성기, 프롬프트·템플릿 일습과 macOS 오디오 함정 3가지의 진단 절차를 포함한다. 필요: macOS 14.2+, BlackHole 2ch 0.5+, ffmpeg, rclone, switchaudio-osx, Soniox API 키(시간당 약 $0.10).",
       "version": "0.1.0",

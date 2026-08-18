@@ -1,6 +1,9 @@
 > **이 파일은 사본입니다.** 정본(SSOT)은 `habitfactory/prep-week/_specs/hb-output-contract.md`에 있습니다. 개정은 정본에서 하고, 이 사본을 동기화합니다. 열 이름·값 도메인·공식이 어긋나면 정본이 이깁니다.
 
-# 가설 백로그 — 출력 계약 (Output Contract) v1.3
+# 가설 백로그 — 출력 계약 (Output Contract) v1.3.1
+
+> **v1.3.1 개정 (2026-08-19) — 그루밍 계약 연결**
+> `hg-output-contract.md` v1.0 제정에 따라 §8 소비자 표에 그루밍 스킬을 추가하고, "Sprint 1 소관" 거절 안내에 `cro-hypothesis-grooming` 라우팅을 병기. 규칙 변경 없음.
 
 > **v1.3 개정 (2026-08-18) — DEC-005: PSR 문장에서 [솔루션 형태] 제거 · Target 필수화**
 > 8/18 우디 리뷰(가설 15건 전수)에서 두 가지가 결정됐습니다. 이 개정 전에 작성된 가설은 규칙 위반이 아니라 **구 규칙대로 쓴 것**이며, Sprint 1 그루밍에서 새 규칙으로 옮깁니다.
@@ -22,7 +25,7 @@
 
 > **지위**: 이 파일이 **단일 정본(SSOT)**입니다. 사본은 `habitfactory-cro-ssot/50_reference/hb-output-contract.md`와 `cro-hypothesis-backlog` 스킬의 `references/output-contract.md` 두 곳 — 개정은 이 파일에서 하고 사본을 동기화합니다. 열 이름·값 도메인·공식이 어긋나면 이 파일이 이깁니다.
 > **용도**: 문제정의 리스트(T4)를 입력으로 받아 **솔루션 아이데이션 → PSR 가설 → 1차(잠정) ICE → 가설 백로그 v1**을 산출하는 세션(워크숍 라이브 + 비동기 개인 과제 공용)의 산출물 규격.
-> **범위 밖**: 가설 그루밍, Problem Validation, Uplift 시뮬레이션, Variant 설계, 실험 설계서 — 전부 Sprint 1(8/17~) 소관. 문제정의는 `pd-output-contract.md`, 문제영역 선정은 `pa-output-contract.md` 소관.
+> **범위 밖**: 가설 그루밍, Problem Validation, Uplift 시뮬레이션 → **`hg-output-contract.md`(스킬 `cro-hypothesis-grooming`) 소관**. Variant 설계, 실험 설계서 → 실험 설계 소관(Sprint 1 후반). 문제정의는 `pd-output-contract.md`, 문제영역 선정은 `pa-output-contract.md` 소관.
 
 ---
 
