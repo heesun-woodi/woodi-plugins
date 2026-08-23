@@ -26,7 +26,7 @@
 | # | PSR 요소 | → ICE 축 | 무엇이 점수를 움직이나 | 그루밍 단계 |
 |---|---|---|---|---|
 | M1 | **P**roblem | **Impact** | 진짜 문제로 느끼는 유저의 크기(트래픽) + 얼마나 진짜인가(정량 Gap·정성 근거) | ② Validation |
-| M2 | **R**esult | **Impact** | 목표 Result 달성 시 비즈니스 지표 개선 영향도 — **Uplift 인과 사슬**: 정량 분석(Gap·트래픽) → Target 달성 가정 → 잔여 퍼널 통과 → **최종 KPI 증분(금액/숫자)** → 이 값으로 Impact 판단 | ② Validation |
+| M2 | **R**esult | **Impact** | 목표 Result 달성 시 비즈니스 지표 개선 영향도 — **Uplift 인과 사슬**: 정량 분석(Gap·트래픽) → Target 달성 가정 → 잔여 퍼널 통과 → **최종 KPI(계약) 증분 금액** → 이 값으로 Impact 판단. **양 축 모두 금액까지 간다** (DEC-007 · 계약 §3-4) | ② Validation |
 | M3 | **R**esult | **Confidence** | 목표 Result **값**에 대한 근거의 품질 (= hb §7-4a Target 타당성) | ⑤ Target |
 | M4 | **S**olution | **Confidence** | 솔루션 성공에 대한 근거의 **품질과 양** (Rationale 7유형) | ④ Rationale |
 | M5 | **S**olution | **Ease** | 솔루션 구현에 필요한 자원(인력·시간) — 대안 솔루션·MVP 축소 | ③ Description |
