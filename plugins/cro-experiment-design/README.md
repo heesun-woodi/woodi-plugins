@@ -23,17 +23,17 @@
 
 ## 설치
 
-```
-/plugin marketplace add heesun-woodi/woodi-plugins
-/plugin install cro-experiment-design@woodi-plugins
-```
-
-로컬 폴더로 설치하는 경우:
+이미 다른 CRO 플러그인을 쓰고 계시면 **업데이트만 하면 됩니다.**
 
 ```
-/plugin marketplace add /Users/<you>/claude-cowork/woodi-plugins
+/plugin marketplace update woodi-plugins
 /plugin install cro-experiment-design@woodi-plugins
+/plugin
 ```
+
+목록에 `cro-experiment-design`이 보이면 준비 완료입니다.
+
+> 마켓플레이스 자체가 목록에 없다면(처음 설치하는 경우) `/plugin marketplace add heesun-woodi/woodi-plugins`를 먼저 실행한 뒤 위 순서를 반복하세요. 로컬 폴더로 받은 경우에는 `/plugin marketplace add /Users/<you>/claude-cowork/woodi-plugins`를 대신 씁니다.
 
 ## 시작하기
 
@@ -53,7 +53,7 @@ E2(Variant 구체화)에서 시안이 없을 때, 참가자 본인 이미지 생
 1. **key 발급** — Gemini(권장, 무료 티어 있음): https://aistudio.google.com/apikey / OpenAI(대안, 결제수단 필요): https://platform.openai.com/api-keys
 2. **`.env` 세팅** — `skills/cro-variant-mockup/scripts/.env.example`을 같은 폴더에 `.env`로 복사한 뒤 발급받은 key를 채웁니다. `.env`는 저장소에 커밋하지 않습니다.
 3. **비용** — 장당 약 $0.04 (제공자·모델·해상도에 따라 변동)
-4. **게이트 4종** — ① PII 마스킹(§7-12, 실고객 정보가 보이는 스크린샷은 마스킹 전 외부 API로 보내지 않음) ② 한글 문구 검수(§7-13, 생성 이미지 문구를 확정 문구와 글자 단위로 대조) ③ AI 초안 표기(§7-14, 파일명·노션 캡션·E2 시안 행 세 곳 모두에 `AI 초안`과 provider/model 병기)
+4. **게이트 4종** — ① PII 마스킹(§7-12, 실고객 정보가 보이는 스크린샷은 마스킹 전 외부 API로 보내지 않음) ② 한글 문구 검수(§7-13, 생성 이미지 문구를 확정 문구와 글자 단위로 대조) ③ 대조군 보존(§7-15, 명세가 지정하지 않은 영역 — 상태바·숫자·통계·CTA 등 — 이 조용히 바뀌지 않았는지 control과 나란히 대조) ④ AI 초안 표기(§7-14, 파일명·노션 캡션·E2 시안 행 세 곳 모두에 `AI 초안`과 provider/model 병기)
 5. **동작 증명 원칙** — 가짜 키는 인증 오류까지만 확인해 줍니다. **준비 점검에서는 반드시 실키로 이미지 1장을 실제로 생성해 눈으로 확인**하세요 — "오류 없이 끝났다"는 "이미지를 받았다"를 의미하지 않습니다.
 
 ## 정본
