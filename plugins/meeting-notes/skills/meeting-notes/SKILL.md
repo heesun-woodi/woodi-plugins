@@ -89,6 +89,22 @@ $S markdown stt_raw/xxx_stt_raw.json --speaker-map speakers.json \
 공통 규칙: transcript에 없는 내용을 추론해 넣지 않는다 · 결정사항과 액션 아이템에는
 근거 타임스탬프를 병기한다 · 말한 순서가 아니라 다음 행동이 가능한 구조로 재구성한다.
 
+## 6.5 보관 정책 (자동)
+
+녹음 원본은 각 단계가 **다음 단계에 사본이 있음을 확인한 뒤에만** 지운다.
+
+- 로컬 `uploaded/`: 원격에 같은 파일이 있고 크기가 맞으면 기본 3일 뒤 삭제 (업로드 직후 자동 실행)
+- 클라우드: **기본 꺼짐**. `CLOUD_RETENTION_DAYS` 와 `NOTES_DIR` 를 둘 다 설정해야 동작하며,
+  회의록 폴더에서 원본 파일명이 확인된 파일만 지운다
+
+사용자가 용량 정리를 요청하면 먼저 `--dry-run` 으로 대상을 보여주고 확인을 받는다.
+클라우드 정리는 로컬을 지운 뒤 **유일한 오디오 원본**을 지우는 것이므로 특히 신중하게 다룬다.
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/cleanup_local.sh --dry-run
+${CLAUDE_PLUGIN_ROOT}/scripts/cleanup_cloud.sh --dry-run
+```
+
 ## 6. 저장
 
 transcript와 회의록을 **별도 파일로** 저장하고 서로 링크한다. 요약본만 남기면

@@ -86,3 +86,8 @@ for f in "$STAGING"/*.m4a "$STAGING"/*.mp3 "$STAGING"/*.wav "$STAGING"/*.aac; do
         log "FAIL(업로드) $base — 다음 스윕에서 재시도"; rm -f "$out"
     fi
 done
+
+# 업로드가 끝난 뒤, 원격에 있는 것이 확인된 오래된 로컬 원본을 정리한다.
+# (이 스크립트의 로그를 믿지 않고, 정리 스크립트가 매번 원격을 직접 확인한다)
+CLEANUP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/cleanup_local.sh"
+[[ -x "$CLEANUP" ]] && bash "$CLEANUP" >/dev/null 2>&1

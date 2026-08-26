@@ -93,8 +93,44 @@ PLISTEOF
 launchctl unload "$PLIST" 2>/dev/null
 launchctl load "$PLIST" 2>/dev/null && ok "업로드 감시 등록 ($LABEL)" || bad "launchd 등록 실패"
 
+# 5) launchd 클라우드 정리 (하루 한 번). 설정이 꺼져 있으면 스크립트가 스스로 아무것도 안 한다.
+CLOUD_LABEL="${CLOUD_CLEANUP_LABEL:-com.meetingrec.cloud-cleanup}"
+CLOUD_PLIST="$HOME/Library/LaunchAgents/$CLOUD_LABEL.plist"
+cat > "$CLOUD_PLIST" <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>$CLOUD_LABEL</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>$HERE/cleanup_cloud.sh</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict><key>Hour</key><integer>4</integer><key>Minute</key><integer>30</integer></dict>
+    <key>StandardOutPath</key><string>$RECORDINGS_DIR/logs/launchd_cloud_cleanup.log</string>
+    <key>StandardErrorPath</key><string>$RECORDINGS_DIR/logs/launchd_cloud_cleanup.log</string>
+</dict>
+</plist>
+PLISTEOF
+launchctl unload "$CLOUD_PLIST" 2>/dev/null
+if launchctl load "$CLOUD_PLIST" 2>/dev/null; then
+    if [[ "${CLOUD_RETENTION_DAYS:-0}" -gt 0 && -n "${NOTES_DIR:-}" ]]; then
+        ok "클라우드 정리 등록 ($CLOUD_LABEL, ${CLOUD_RETENTION_DAYS}일 보관)"
+    else
+        ok "클라우드 정리 등록 ($CLOUD_LABEL) — 현재 비활성. 켜려면 설정에서 CLOUD_RETENTION_DAYS 와 NOTES_DIR 를 채우세요"
+    fi
+else
+    bad "클라우드 정리 launchd 등록 실패"
+fi
+
 echo
 echo "── 다음 할 일 ──"
 echo "  1. rclone 원격 설정 후 $CONFIG 의 UPLOAD_DEST 채우기"
 echo "  2. 녹음 테스트: rec start 테스트 → (소리 재생) → rec stop"
 echo "     정지 시 표시되는 채널 레벨이 둘 다 -80dB 보다 크면 정상입니다."
+echo "  3. (선택) 보관 정책: 로컬은 기본 3일 뒤 자동 삭제됩니다."
+echo "     클라우드 원본도 정리하려면 $CONFIG 에서"
+echo "     CLOUD_RETENTION_DAYS 와 NOTES_DIR(회의록 폴더)를 설정하세요."
+echo "     무엇이 지워질지 먼저 확인: $HERE/cleanup_cloud.sh --dry-run"
