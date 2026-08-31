@@ -1,0 +1,8 @@
+{
+  "name": "synthetic-qual-research",
+  "description": "End-to-end orchestrator for synthetic-user qualitative research on the nvidia/Nemotron-Personas-Korea personas. Bundles three skills — synthetic-qual-research (the conductor: goal → survey → field → find ICP → deep interview → synthesize, owning a run directory, a reproducibility manifest, file-welded UUIDs, two human gates, and a validity caveat pass), backward-survey-builder (backward-design survey instruments for synthetic respondents), and synthetic-icp-interview (field a survey on personas, select the ICP with evidence, run a deep in-character interview). DEPENDS ON the nemotron-personas-korea plugin (persona-respondent agent, /persona-interviewee command, dataset loader, dispatch-strategy, synthetic-population-validity) and a local Python env with datasets+pandas and the cached dataset (~5.76GB).",
+  "version": "0.1.0",
+  "author": {
+    "name": "heesun-woodi"
+  }
+}

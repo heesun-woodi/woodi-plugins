@@ -1,0 +1,25 @@
+{
+  "slug": "<goal-slug>",
+  "created": "<YYYY-MM-DD>",
+  "goal": "<the decision, framed as an action>",
+  "audience_filter": "<load_persona.py filter, e.g. sex=여자,age>=28,age<=42,province=서울>",
+  "icp_hypothesis": "<optional early guess at the most decision-relevant respondent>",
+  "N": 15,
+  "random_state": 42,
+  "model": "<model id used for dispatch>",
+  "phase_status": {
+    "0_init": "done",
+    "1_survey": "todo",
+    "2_field": "todo",
+    "3_icp": "todo",
+    "4_interview": "todo",
+    "5_synthesis": "todo"
+  },
+  "artifacts": {
+    "survey": "survey.md",
+    "drawn": "drawn_personas.jsonl",
+    "results": "results.json",
+    "icp": "icp.json",
+    "synthesis": "synthesis.md"
+  }
+}

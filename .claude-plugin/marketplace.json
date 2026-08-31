@@ -70,6 +70,24 @@
         "name": "heesun-woodi"
       },
       "source": "./plugins/meeting-notes"
+    },
+    {
+      "name": "nemotron-personas-korea",
+      "description": "nvidia/Nemotron-Personas-Korea HuggingFace 데이터셋(한국 성인 100만 합성 페르소나, KOSIS·대법원·건보 마진 보정, CC BY 4.0)을 기반으로 한 한국어 LLM-as-respondent 툴킷. 스킬 4종 — dataset(스키마·설문 문항 설계 함정·번들 검사/로더 스크립트) · dispatch-strategy(디스패치 모드·동시성 사이징) · synthetic-population-validity(합성/LLM 설문 응답 분포를 실측 인간 기준과 비교하는 도메인 무관 방법론·통계, Big Five 외 어떤 synth-vs-real 비교에도 적용) · bulk-reply-save(배치 디스패치 응답을 2회 도구 호출로 저장하는 패턴) — 와 서브에이전트 persona-respondent(페르소나 1인 역할극, 인라인/파일읽기 배치, 스테이지 디렉션 대괄호, 파일쓰기 저장 지원), 슬래시커맨드 `/nemotron-personas-korea:persona-interviewee`(uuid 또는 인구통계 필터로 특정 페르소나에 대한 in-character 정성 인터뷰, `--save` 전사 로깅)를 번들합니다. 데이터셋 없이도 인구통계 지정 인터뷰는 동작하나, 설문(표집) 경로는 데이터셋이 필수입니다. 요구사항: HF `nvidia/Nemotron-Personas-Korea`(parquet ~1.85GB, materialize 시 총 ~5.8GB, `HF_HOME` 환경변수 위치에 캐시), 로컬 Python 3 + `datasets`·`pandas`·`pyarrow`.",
+      "version": "0.1.9",
+      "author": {
+        "name": "cjunekim"
+      },
+      "source": "./plugins/nemotron-personas-korea"
+    },
+    {
+      "name": "synthetic-qual-research",
+      "description": "목표 하나에서 의사결정까지, 합성사용자(nvidia/Nemotron-Personas-Korea 페르소나) 대상 정성조사 전 과정을 지휘하는 오케스트레이터 플러그인. 스킬 3종 — synthetic-qual-research(컨덕터: 목표 → 설문 → 필드 → ICP 선정 → 심층인터뷰 → 종합, 런 디렉토리·재현성 매니페스트·UUID 파일-용접 불변식·휴먼 게이트 2개·타당성 캡션 소유) · backward-survey-builder(목표→RQ→태그 문항의 backward-design 설문 설계) · synthetic-icp-interview(설문 필드 결과에서 근거 기반 ICP 선정 후 in-character 심층 인터뷰) — 를 번들하며, 재현 가능한 draw를 위한 `scripts/draw_personas.py`와 UUID·응답 스키마 게이트인 `scripts/validate_results.py`를 포함합니다. 이 플러그인은 얇은 오케스트레이터로 **nemotron-personas-korea 플러그인에 의존**합니다 — persona-respondent 에이전트, `/persona-interviewee` 커맨드, 데이터셋 로더, dispatch-strategy, synthetic-population-validity 스킬을 그쪽에서 가져다 쓰므로 먼저 설치해야 합니다. 추가로 로컬 Python 환경(`datasets`+`pandas`)과 데이터셋 캐시(~5.76GB, `HF_HOME` 아래)가 있어야 실제 페르소나 draw·필드(Phase 2)가 동작하며, 없는 환경에서는 설계·인터뷰 연기·종합 같은 텍스트 단계까지만 가능합니다.",
+      "version": "0.1.0",
+      "author": {
+        "name": "heesun-woodi"
+      },
+      "source": "./plugins/synthetic-qual-research"
     }
   ]
 }
