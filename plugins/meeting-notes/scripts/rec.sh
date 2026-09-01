@@ -53,6 +53,11 @@ log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$LOG"; }
 notify() { osascript -e "display notification \"${2//\"/}\" with title \"${1//\"/}\"" >/dev/null 2>&1 || true; }
 die() { echo "❌ $*" >&2; log "ERROR: $*"; notify "회의 녹음 오류" "$*"; exit 1; }
 
+# 에어팟 같은 블루투스 헤드셋은 **같은 이름으로 입력·출력이 별도 장치**로 잡힌다.
+# 이름만으로 고르면 목록에서 먼저 나오는 입력 장치를 집어 출력용 다중장치가
+# 엉뚱하게 구성된다(출력 0채널 장치가 주 장치가 된다). 그래서 방향까지 보고 고른다.
+dev_uid_out() { "$AUDIODEV" list | awk -F'\t' -v n="$1" '$1==n && $4>0 {print $2; exit}'; }
+dev_uid_in()  { "$AUDIODEV" list | awk -F'\t' -v n="$1" '$1==n && $3>0 {print $2; exit}'; }
 dev_uid() { "$AUDIODEV" list | awk -F'\t' -v n="$1" '$1==n {print $2; exit}'; }
 dev_in_ch() { "$AUDIODEV" list | awk -F'\t' -v u="$1" '$2==u {print $3; exit}'; }
 dev_exists() { "$AUDIODEV" list | awk -F'\t' -v u="$1" '$2==u {found=1} END {exit !found}'; }
@@ -132,7 +137,7 @@ cmd_start() {
     if [[ "$prev_out" == "$OUT_NAME" ]]; then      # 비정상 종료 흔적 방어
         prev_out="$("$AUDIODEV" list | awk -F'\t' '$4>0 && $2!="'"$BLACKHOLE_UID"'" {print $1; exit}')"
     fi
-    listen_uid="$(dev_uid "$prev_out")"
+    listen_uid="$(dev_uid_out "$prev_out")"
     [[ -n "$listen_uid" ]] || die "현재 출력 장치($prev_out)의 UID를 찾지 못했습니다"
 
     # 2) 마이크: 설정된 UID → 없으면 아무 입력 장치
