@@ -33,6 +33,8 @@ RECORDINGS_DIR="${RECORDINGS_DIR:-$HOME/recordings}"
 MIC_UID="${MIC_UID:-BuiltInMicrophoneDevice}"
 UPLOAD_LABEL="${UPLOAD_LABEL:-com.meetingrec.upload}"
 AUDIO_BITRATE="${AUDIO_BITRATE:-96k}"
+# 회의 중 감시 주기(초). 2회 연속 무음이면 알린다 → 기본값에서 약 4분 뒤 경고. 0이면 감시 끔
+WATCH_INTERVAL="${WATCH_INTERVAL:-120}"
 
 AUDIODEV="${AUDIODEV:-$HERE/audiodev}"
 STAGING="$RECORDINGS_DIR/staging"
@@ -54,6 +56,63 @@ die() { echo "❌ $*" >&2; log "ERROR: $*"; notify "회의 녹음 오류" "$*"; 
 dev_uid() { "$AUDIODEV" list | awk -F'\t' -v n="$1" '$1==n {print $2; exit}'; }
 dev_in_ch() { "$AUDIODEV" list | awk -F'\t' -v u="$1" '$2==u {print $3; exit}'; }
 dev_exists() { "$AUDIODEV" list | awk -F'\t' -v u="$1" '$2==u {found=1} END {exit !found}'; }
+
+# 회의 중 감시 — 화상회의에서 상대방 목소리가 녹음되지 않는 사고를 실시간으로 잡는다.
+#
+# 왜 필요한가: 이 파이프라인에서 가장 아픈 실패는 회의가 끝난 뒤에야 "무음이었네"를
+# 아는 것이다. 원인은 대부분 녹음 중 시스템 오디오가 BlackHole 로 흐르지 않게 되는 것인데,
+# 사용자는 소리가 잘 들리므로 아무 이상을 못 느낀다.
+#   - 회의앱(Zoom 등)이 스피커를 특정 장치로 고정해 두면 시스템 출력 전환을 무시한다
+#   - 회의 중 블루투스 이어폰 연결/해제로 출력 장치가 바뀐다
+#   - 사용자가 출력 장치를 직접 바꾼다
+#
+# 녹음 중인 파일은 ffmpeg 이 버퍼링해서 디스크에 거의 안 쓰이므로 측정할 수 없다.
+# 대신 BlackHole 을 짧게 별도 샘플링한다 (녹음 중 동시 읽기가 가능한 것을 실측 확인).
+watchdog() {
+    local main_pid="$1"
+    local probe="/tmp/meetingrec_probe_$$.wav"
+    local silent=0 warned=0 cur lvl
+
+    while kill -0 "$main_pid" 2>/dev/null && [[ -f "$STATE" ]]; do
+        sleep "$WATCH_INTERVAL"
+        kill -0 "$main_pid" 2>/dev/null || break
+        [[ -f "$STATE" ]] || break
+
+        # 1) 출력 장치가 여전히 우리 다중출력인가
+        cur="$(SwitchAudioSource -t output -c 2>/dev/null)"
+        if [[ -n "$cur" && "$cur" != "$OUT_NAME" ]]; then
+            log "WARN 출력장치가 '$cur' 로 바뀜 — 상대방 오디오가 녹음되지 않습니다"
+            [[ "$warned" -eq 0 ]] && {
+                notify "⚠️ 녹음 경고" "출력이 '$cur' 로 바뀌어 상대방 목소리가 안 잡힙니다"
+                warned=1; }
+            continue
+        fi
+
+        # 2) BlackHole 에 실제로 신호가 흐르는가 (회의앱이 다른 장치로 직접 재생하는 경우)
+        ffmpeg -nostdin -hide_banner -loglevel error -f avfoundation \
+               -i ":BlackHole 2ch" -t 5 -y "$probe" >/dev/null 2>&1
+        lvl="$(ffmpeg -hide_banner -i "$probe" -af volumedetect -f null - 2>&1 |
+               grep max_volume | sed 's/.*max_volume: //; s/ dB//')"
+        rm -f "$probe"
+        [[ -z "$lvl" ]] && continue
+
+        if awk -v v="$lvl" 'BEGIN{exit !(v+0 < -80)}'; then
+            silent=$((silent+1))
+            log "WATCH BlackHole 무음 (${silent}회 연속, ${lvl}dB)"
+            # 잠깐의 침묵은 정상이므로 연속 2회일 때만 알린다.
+            # 대면 회의는 원래 시스템 오디오가 없으므로 한 번만 알리고 반복하지 않는다.
+            if [[ "$silent" -ge 2 && "$warned" -eq 0 ]]; then
+                notify "⚠️ 상대방 목소리 미감지" "화상회의라면 회의앱 스피커를 '시스템과 동일'로 바꾸세요"
+                log "WARN 상대방 오디오 미감지 지속 — 회의앱 스피커 설정 의심"
+                warned=1
+            fi
+        else
+            [[ "$silent" -gt 0 ]] && log "WATCH 신호 복구 (${lvl}dB)"
+            silent=0
+        fi
+    done
+    rm -f "$probe"
+}
 
 cmd_start() {
     [[ -f "$STATE" ]] && die "이미 녹음 중입니다. 먼저 'rec stop' 하세요."
@@ -122,7 +181,12 @@ cmd_start() {
         die "ffmpeg 이 시작 직후 종료됐습니다. 로그: $LOG"
     fi
 
+    # 회의 중 감시 시작 — 상대방 오디오가 끊기면 회의가 끝난 뒤가 아니라 지금 알려준다
+    local wdog=""
+    if [[ "${WATCH_INTERVAL:-0}" -gt 0 ]]; then watchdog "$pid" & wdog=$!; fi
+
     { printf 'pid=%s\n' "$pid"
+      printf 'wdog=%s\n' "$wdog"
       printf 'file=%q\n' "$outfile"
       printf 'prev_out=%q\n' "$prev_out"
       printf 'started=%s\n' "$(date '+%s')"; } >"$STATE"
@@ -136,6 +200,9 @@ cmd_stop() {
     [[ -f "$STATE" ]] || die "녹음 중이 아닙니다"
     # shellcheck disable=SC1090
     source "$STATE"
+
+    # 감시 프로세스를 먼저 정리한다 (샘플링이 종료 처리와 겹치지 않게)
+    [[ -n "${wdog:-}" ]] && kill "$wdog" 2>/dev/null
 
     if kill -0 "$pid" 2>/dev/null; then
         kill -INT "$pid"                     # SIGINT → ffmpeg 이 파일을 정상 마무리
@@ -162,6 +229,7 @@ cmd_stop() {
     lvl_mic="$(ffmpeg -hide_banner -i "$file" -af "pan=mono|c0=c1,volumedetect" -f null - 2>&1 |
                grep max_volume | sed 's/.*max_volume: //; s/ dB//')"
     printf '   레벨 — 상대방(L) %s dB / 나(R) %s dB\n' "$lvl_sys" "$lvl_mic"
+    log "LEVEL $(basename "$file") L=${lvl_sys}dB R=${lvl_mic}dB"
     awk -v v="$lvl_sys" 'BEGIN{exit !(v+0 < -80)}' 2>/dev/null && {
         warn="⚠️ 상대방 무음! "; echo "   ⚠️  상대방 오디오가 무음입니다 — BlackHole 음소거/버전을 확인하세요"; }
     awk -v v="$lvl_mic" 'BEGIN{exit !(v+0 < -80)}' 2>/dev/null && {

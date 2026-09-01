@@ -20,6 +20,10 @@ MIC_UID="BuiltInMicrophoneDevice"
 # 녹음 비트레이트 (STT 용도로는 96k 면 충분하다)
 AUDIO_BITRATE="96k"
 
+# 회의 중 감시 주기(초). 상대방 오디오가 BlackHole 로 흐르지 않으면 회의 중에 알린다.
+#   2회 연속 무음일 때 알리므로 기본값에서 약 4분 내 감지된다. 0 이면 감시를 끈다.
+WATCH_INTERVAL="120"
+
 # 업로드 전 최소 길이(초). 이보다 짧으면 녹음 사고로 보고 failed/ 로 격리한다.
 MIN_DURATION="5"
 
