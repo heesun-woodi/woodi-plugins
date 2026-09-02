@@ -83,13 +83,23 @@ watchdog() {
         kill -0 "$main_pid" 2>/dev/null || break
         [[ -f "$STATE" ]] || break
 
-        # 1) 출력 장치가 여전히 우리 다중출력인가
+        # 1) 출력 장치가 여전히 우리 다중출력인가 (블루투스 연결, 사용자의 수동 변경 등)
+        #    경고만 하면 회의가 끝날 때까지 녹음이 비어버린다. 되돌릴 수 있으면 **자동으로 되돌린다**.
+        #    특히 집합장치(MeetingRec Input)도 출력 목록에 보이기 때문에 사용자가 실수로
+        #    그쪽을 고르기 쉽고, 그러면 소리도 안 들리고 녹음도 안 된다.
         cur="$(SwitchAudioSource -t output -c 2>/dev/null)"
         if [[ -n "$cur" && "$cur" != "$OUT_NAME" ]]; then
-            log "WARN 출력장치가 '$cur' 로 바뀜 — 상대방 오디오가 녹음되지 않습니다"
-            [[ "$warned" -eq 0 ]] && {
-                notify "⚠️ 녹음 경고" "출력이 '$cur' 로 바뀌어 상대방 목소리가 안 잡힙니다"
-                warned=1; }
+            if SwitchAudioSource -t output -s "$OUT_NAME" >/dev/null 2>&1; then
+                log "FIX 출력장치가 '$cur' 로 바뀌어 있어 '$OUT_NAME' 으로 되돌림"
+                [[ "$warned" -eq 0 ]] && {
+                    notify "🔧 녹음 자동 복구" "출력이 '$cur' 로 바뀌어 되돌렸습니다"
+                    warned=1; }
+            else
+                log "WARN 출력장치가 '$cur' 로 바뀜 — 되돌리기 실패, 상대방 오디오가 녹음되지 않습니다"
+                [[ "$warned" -eq 0 ]] && {
+                    notify "⚠️ 녹음 경고" "출력이 '$cur' 로 바뀌어 상대방 목소리가 안 잡힙니다"
+                    warned=1; }
+            fi
             continue
         fi
 
@@ -188,7 +198,15 @@ cmd_start() {
 
     # 회의 중 감시 시작 — 상대방 오디오가 끊기면 회의가 끝난 뒤가 아니라 지금 알려준다
     local wdog=""
-    if [[ "${WATCH_INTERVAL:-0}" -gt 0 ]]; then watchdog "$pid" & wdog=$!; fi
+    # stdout/stderr 를 반드시 끊는다: 호출자가 $(rec start ...) 로 출력을 캡처하면
+    # 명령치환이 **파이프를 물고 있는 백그라운드 자식까지** 기다린다. 그러면 이 스크립트를
+    # 감싸는 GUI 런처(Dock 앱 등)가 녹음 내내 종료되지 않아, 정지하려고 다시 눌러도
+    # macOS 가 '이미 실행 중'으로 보고 무시해버린다(실측 확인된 회귀).
+    if [[ "${WATCH_INTERVAL:-0}" -gt 0 ]]; then
+        watchdog "$pid" >/dev/null 2>&1 &
+        wdog=$!
+        disown "$wdog" 2>/dev/null
+    fi
 
     { printf 'pid=%s\n' "$pid"
       printf 'wdog=%s\n' "$wdog"
