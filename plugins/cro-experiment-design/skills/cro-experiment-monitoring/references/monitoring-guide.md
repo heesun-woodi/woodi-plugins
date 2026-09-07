@@ -111,14 +111,14 @@ G4가 깨지면 해당 구간을 제외하고 재집계하거나 재실험을 �
   아니오 → 지속(헬스 모드, 예상 도달일만 보고)
   예 → [SRM 정상]?  아니오 → 「실험 설계 잘못됨」 종착(리프트 불문, 결과 불사용)
      예 → [Primary stat-sig 도달]?
-        예·실험군>대조군·MDE 달성·Guardrail 허용 내 → WIN 종료
-        예·실험군>대조군·Guardrail 위반           → INCONCLUSIVE(가드레일 거부권) 종료
-        예·실험군<대조군                          → LOSE 종료
+        예·실험군>대조군·MDE 달성·Guardrail 허용 기준 안 → WIN 종료
+        예·실험군<대조군                                → LOSE 종료
+        예·그 밖(MDE 미달 또는 Guardrail 허용 밖)       → INCONCLUSIVE 종료
         아니오 → [지속 판단 임계 충족 AND 지속 시 결과가 변할 수 있고 자원 trade-off 수용]?
               예 → 지속(연장, 종료일 재고정)  /  아니오 → INCONCLUSIVE 종료
 ```
 
-지속 판단 임계는 stat-sig ≥ 80% ⚠️확인필요 — 코치 확정. 별도 종착 「실험 설계 잘못됨」 트리거: SRM·Primary 이벤트 미수집·정의 불일치·중복 노출/variant jumping·실험 중 배분·variant·sticky bucketing 변경 이력. (KB08 L125-186 · 세션 블록 C-4)
+지속 판단 임계는 stat-sig ≥ 80% ⚠️확인필요 — 코치 확정. `INCONCLUSIVE`는 하나이며 별도 이름을 붙이지 않는다(계약 §7-11). 별도 종착 「실험 설계 잘못됨」 트리거: SRM·Primary 이벤트 미수집·중복 노출/variant jumping·실험 중 배분·variant·sticky bucketing 변경 이력. (KB08 L125-186 · 세션 블록 C-4)
 
 ## 11. SRM 원인 13가지 — 중간점검 체크리스트
 
