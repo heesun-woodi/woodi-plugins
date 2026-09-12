@@ -45,6 +45,8 @@
 | **Google 계정** (GA4 조회 권한) | GA4 속성 접근 | ✅ |
 | **Meta 광고 계정** (선택) | 광고 효율 추가 | — |
 
+GA4 연결은 Google 공식 `analytics-mcp`(https://github.com/googleanalytics/google-analytics-mcp) 0.7.0을 `uvx`로 실행합니다 — 버전은 플러그인 `.mcp.json`에 고정돼 있으며, 올릴 때는 플러그인 버전과 함께 갱신합니다.
+
 ### 설치 명령 (OS별)
 
 **macOS:**

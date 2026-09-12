@@ -2,7 +2,7 @@
   "mcpServers": {
     "analytics-mcp": {
       "command": "uvx",
-      "args": ["analytics-mcp"]
+      "args": ["analytics-mcp==0.7.0"]
     },
     "meta-ads": {
       "type": "http",
