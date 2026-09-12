@@ -1,0 +1,143 @@
+{
+  "mode": "광고랜딩",
+  "target_screen": "광고 소재 1장 + 그 소재가 연결하는 모바일 랜딩(상품상세 또는 기획전) 첫 화면",
+  "goal": "광고로 들어온 고객이 도착한 화면에서 바로 나가는 지점을 찾는다",
+  "field_guide": {
+    "mobile_screenshot_judgeable": "true면 소재·랜딩 캡처만으로 판정할 수 있다. false면 URL 텍스트나 실제 조작이 있을 때만 판정하고, 없으면 N/A + 근거 칸에 'URL 텍스트 없음'이라고 적는다.",
+    "소재가 없을 때": "LP-M1~LP-M3은 전부 N/A로 두고 표 아래에 '광고 소재를 받지 못해 일치 항목은 판정하지 않았습니다'를 한 줄 적는다.",
+    "판정": "Pass / Fail / N/A. 모든 Fail에는 근거 Fact ID를 단다.",
+    "없음은 Fail이 아니다": "화면에 안 보인다고 바로 Fail이 아니다 — **없음≠Fail**. 탭·아코디언이 접혀 있거나 캡처가 그 구간을 덮지 못했으면 `N/A`다. Fail은 그 요소가 있어야 할 자리를 캡처가 실제로 덮었을 때만 찍는다.",
+    "미판정": "STEP2 축약 스위치로 아직 보지 않은 항목은 `미판정`으로 적는다. `N/A`와 `미판정` 둘 다 Fail율 분모에서 뺀다. 분모가 0이면 Fail율은 `—`다.",
+    "입력 파일명": "소재는 `ad-01.png`, 랜딩 첫 화면 캡처는 `lp-01.png`(여러 장이면 `lp-02.png`…)다. 이 모드는 `ad-`·`lp-` 접두 파일만 읽는다."
+  },
+  "sections": [
+    {
+      "section": "Landing — 소재와 랜딩이 같은 말을 하는가",
+      "items": [
+        {
+          "id": "LP-M1",
+          "item_ko": "광고 소재 헤드라인의 핵심 단어가 랜딩 첫 화면에 그대로 있다",
+          "bias_stage": "Block",
+          "screen_hint": "소재에서 가장 크게 쓴 단어를 랜딩 첫 화면에서 그대로 찾을 수 있는지 (같은 뜻이 아니라 같은 단어)",
+          "pass_criteria": "소재 헤드라인의 핵심 단어가 랜딩 첫 화면 문구에 같은 단어로 나온다",
+          "fail_signal": "소재는 A라는 말로 부르고 랜딩 첫 줄은 다른 말로 불러, 같은 것을 말하는지 확인하려면 읽어 봐야 한다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "LP-M2",
+          "item_ko": "광고 소재에 나온 상품·색·연출이 랜딩 첫 화면에서 바로 보인다",
+          "bias_stage": "Block",
+          "screen_hint": "소재에서 본 그 물건이 랜딩 첫 화면에 있는지, 다른 상품이나 기획전 배너가 먼저 나오는지",
+          "pass_criteria": "소재에 나온 상품과 같은 상품(같은 색·같은 연출 포함)이 랜딩 첫 화면 이미지에 있다",
+          "fail_signal": "소재에서 본 상품이 첫 화면에 없고 다른 상품 목록이나 기획전 배너가 먼저 나온다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "LP-M3",
+          "item_ko": "소재가 약속한 혜택(할인율·사은품·기간)이 랜딩 첫 화면에 같은 숫자로 있다",
+          "bias_stage": "Interpret",
+          "screen_hint": "소재의 숫자와 랜딩의 숫자가 같은지 (소재 30%, 랜딩 20%처럼 어긋나지 않는지)",
+          "pass_criteria": "소재의 혜택 숫자와 랜딩 첫 화면의 혜택 숫자가 일치한다",
+          "fail_signal": "소재의 혜택이 랜딩 첫 화면에 없거나, 숫자가 서로 다르다",
+          "mobile_screenshot_judgeable": true
+        }
+      ]
+    },
+    {
+      "section": "Landing — 첫 화면 3초",
+      "items": [
+        {
+          "id": "LP-H1",
+          "item_ko": "첫 화면만 보고 3초 안에 무엇을 파는 곳인지 안다",
+          "bias_stage": "Block",
+          "screen_hint": "스크롤하지 않은 상태에서 품목과 브랜드가 파악되는지",
+          "pass_criteria": "스크롤 전 첫 화면에서 무슨 품목을 파는지 알 수 있다",
+          "fail_signal": "첫 화면이 분위기 이미지나 팝업 위주라 무엇을 파는 곳인지 알 수 없다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "LP-H2",
+          "item_ko": "첫 화면에 헤드라인·상품 이미지·행동 버튼이 함께 보인다",
+          "bias_stage": "Block",
+          "screen_hint": "셋 중 하나라도 스크롤해야 나오는지",
+          "pass_criteria": "스크롤 전 첫 화면 안에 문구·상품 이미지·다음 행동 버튼 셋이 모두 있다",
+          "fail_signal": "첫 화면에 이미지만 있고 문구나 버튼은 내려야 나온다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "LP-H3",
+          "item_ko": "가격이 첫 화면 또는 첫 스크롤 안에 보인다",
+          "bias_stage": "Interpret",
+          "screen_hint": "가격을 확인하려고 한참 내려야 하는지",
+          "pass_criteria": "첫 화면 또는 한 번 스크롤한 범위 안에 판매가가 보인다",
+          "fail_signal": "가격이 화면 한참 아래에만 있어 처음에는 얼마인지 알 수 없다",
+          "mobile_screenshot_judgeable": true
+        }
+      ]
+    },
+    {
+      "section": "Landing — 다음 행동",
+      "items": [
+        {
+          "id": "LP-C1",
+          "item_ko": "주요 행동 버튼이 화면에서 가장 눈에 띄는 요소다",
+          "bias_stage": "Act",
+          "screen_hint": "쿠폰·이벤트·메뉴 버튼과 섞여 무엇을 눌러야 할지 헷갈리지 않는지",
+          "pass_criteria": "주요 행동 버튼이 주변 요소보다 크거나 색이 강해 먼저 인지된다",
+          "fail_signal": "여러 버튼이 같은 크기·색으로 나란히 있어 무엇이 주요 행동인지 구분되지 않는다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "LP-C2",
+          "item_ko": "스크롤해도 행동 버튼에 다시 도달할 수 있다",
+          "bias_stage": "Act",
+          "screen_hint": "아래로 내렸을 때 버튼이 고정돼 있거나 같은 버튼이 다시 나오는지",
+          "pass_criteria": "아래쪽 캡처에도 행동 버튼이 고정 노출되거나 같은 버튼이 반복해 나온다",
+          "fail_signal": "행동 버튼이 첫 화면에만 있어 다시 맨 위로 올라가야 한다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "LP-C3",
+          "item_ko": "행동 버튼 근처에 불안을 덜어주는 한 줄(배송·교환·반품)이 있다",
+          "bias_stage": "Store",
+          "screen_hint": "누르기 직전에 '실패해도 괜찮다'는 정보가 함께 보이는지",
+          "pass_criteria": "행동 버튼과 같은 화면에 배송·교환·반품 중 하나에 대한 안내 문구가 있다",
+          "fail_signal": "버튼 주변에 그런 안내가 없어 조건을 확인하려면 다른 곳으로 나가야 한다",
+          "mobile_screenshot_judgeable": true
+        }
+      ]
+    },
+    {
+      "section": "Landing — 이탈 유도 요소",
+      "items": [
+        {
+          "id": "LP-X1",
+          "item_ko": "첫 화면에 랜딩 밖으로 나가게 하는 링크·배너가 없다",
+          "bias_stage": "Block",
+          "screen_hint": "다른 기획전·다른 카테고리·홈으로 보내는 배너가 첫 화면에 있는지",
+          "pass_criteria": "첫 화면에 이 상품/기획전과 무관한 다른 곳으로 보내는 배너·링크가 없다",
+          "fail_signal": "첫 화면 상단이나 중간에 다른 기획전·다른 상품군으로 보내는 배너가 있다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "LP-X2",
+          "item_ko": "팝업·쿠폰창이 첫 화면을 가리지 않는다",
+          "bias_stage": "Block",
+          "screen_hint": "도착하자마자 팝업이 떠서 상품이나 버튼을 덮는지",
+          "pass_criteria": "도착 직후 첫 화면에 상품과 버튼이 가려지지 않고 보인다",
+          "fail_signal": "도착하자마자 뜬 팝업이 첫 화면 핵심 영역을 덮어 닫기부터 눌러야 한다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "LP-X3",
+          "item_ko": "광고를 보고 온 고객이 찾는 그 상품에 몇 번의 탭 안에 도달한다",
+          "bias_stage": "Act",
+          "screen_hint": "목록형 랜딩이면 소재의 그 상품까지 몇 번 눌러야 하는지 (조작이 필요해 캡처만으로는 판정하지 않는다)",
+          "pass_criteria": "소재에 나온 상품 페이지에 도착 후 1탭 이내로 도달한다",
+          "fail_signal": "목록·카테고리를 거쳐 여러 번 눌러야 소재의 그 상품에 닿는다",
+          "mobile_screenshot_judgeable": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "ecommerce-growth-discovery",
+  "description": "GA4와 Meta 광고 계정을 MCP로 직접 연결해, 우리 몰의 baseline·전환율·트래픽·채널 효율을 스스로 발견하고 화면의 문제를 정리해 PSR 가설까지 만드는 이커머스 그로스 디스커버리 코칭 플러그인입니다. 스킬 4종 — setup(가이드형 세팅: uv·gcloud·ADC·GA4 속성 선택·매출 지표 선택을 읽기 전용으로 점검하고, 빠진 항목은 해당 OS의 명령을 보여준 뒤 멈춥니다. 소프트웨어 설치를 대신 실행하지 않습니다) · explore(GA4 실쿼리로 baseline·traffic·funnel·channel-cvr·areas 다섯 갈래를 순서대로 탐색) · screen(상품·랜딩 화면 스크린샷을 CRO 체크리스트와 BIAS 27항목으로 진단해 문제 목록을 만듦) · psr(정리된 문제를 PSR 가설 문장과 ICE 점수로 조립) — 을 번들하고, 플러그인 루트 `.mcp.json`으로 analytics-mcp(stdio, `uvx analytics-mcp`)와 Meta 공식 Ads MCP(hosted, 브라우저 OAuth) 두 서버를 함께 등록합니다. **플러그인에는 어떤 고객 데이터도 들어 있지 않습니다** — 속성 ID·조회 기간·매출 지표·제외 필터·데이터 주의 문구는 전부 작업 폴더의 `growth-discovery.config.json`에서 읽고, 숫자는 사용자가 자기 계정으로 연결한 MCP에서만 조회합니다. 출력은 벤치마크 후행 2단 출력(우리 숫자를 먼저 보여주고, 어떻게 보이는지 답을 받은 뒤에 벤치마크를 붙임)으로 고정되어 있고, 판단어 대신 값과 비교 사실만 말하며 질문 하나로 끝납니다. 없는 숫자는 만들지 않고, 조회에 실패하면 저장본으로 대체하지 않고 무엇이 안 되는지 밝힌 뒤 멈춥니다. 공개 벤치마크 표(전환율·장바구니·퍼널·채널·신규/재방문·트래픽 믹스·기기·Meta 광고 효율)는 출처 링크와 함께 동봉되며 `industry`(fashion·home·general) 설정에 따라 1차 대조 행이 정해집니다. 필요: uv, gcloud와 ADC(analytics.readonly 스코프), 조회할 GA4 속성의 뷰 권한. Meta 광고 연결은 선택입니다.",
+  "version": "0.2.0",
+  "author": {
+    "name": "heesun-woodi"
+  }
+}

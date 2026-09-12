@@ -1,0 +1,187 @@
+{
+  "mode": "상품상세",
+  "target_screen": "모바일 상품상세 페이지",
+  "goal": "상품상세를 본 고객이 장바구니로 넘어가지 못하는 지점을 찾는다",
+  "field_guide": {
+    "mobile_screenshot_judgeable": "true면 모바일 스크린샷만으로 판정할 수 있다. false면 URL 텍스트가 있을 때만 판정하고, 없으면 N/A + 근거 칸에 'URL 텍스트 없음'이라고 적는다.",
+    "판정": "Pass / Fail / N/A. 모든 Fail에는 근거 Fact ID를 단다. 근거가 ❓(판독 불확실)뿐이면 N/A다.",
+    "없음은 Fail이 아니다": "화면에 안 보인다고 바로 Fail이 아니다 — **없음≠Fail**. 탭·아코디언이 접혀 있거나 캡처가 그 구간을 덮지 못했으면 `N/A`다. Fail은 그 요소가 있어야 할 자리를 캡처가 실제로 덮었을 때만 찍는다.",
+    "미판정": "STEP2 축약 스위치로 아직 보지 않은 항목은 `미판정`으로 적는다. `N/A`와 `미판정` 둘 다 Fail율 분모에서 뺀다. 분모가 0이면 Fail율은 `—`다."
+  },
+  "sections": [
+    {
+      "section": "Product Page — 기본 구조",
+      "items": [
+        {
+          "id": "PP-G1",
+          "item_ko": "스크롤해도 장바구니·구매 버튼에 다시 도달할 수 있다 (고정 버튼 또는 반복 배치)",
+          "bias_stage": "Act",
+          "screen_hint": "상세 본문을 끝까지 내렸을 때 담기 버튼이 화면에 남아 있는지, 아니면 맨 위로 다시 올라가야 하는지",
+          "pass_criteria": "상세 본문 중간·하단 캡처에도 장바구니 담기 버튼이 화면에 고정 노출되거나 같은 버튼이 다시 나온다",
+          "fail_signal": "첫 화면 이후 캡처에는 담기 버튼이 어디에도 없어 맨 위로 되돌아가야 한다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "PP-G2",
+          "item_ko": "결정 전에 물어볼 수 있는 채널(문의·채팅·카카오 상담 등)이 화면에 보인다",
+          "bias_stage": "Store",
+          "screen_hint": "사이즈나 배송이 궁금할 때 바로 물어볼 진입점이 상세 화면 안에 있는지",
+          "pass_criteria": "상세 화면 안에 문의하기·채팅 등 물어볼 수 있는 진입점이 노출된다",
+          "fail_signal": "문의 진입점이 화면 어디에도 없어 다른 메뉴로 나가야 물어볼 수 있다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "PP-G3",
+          "item_ko": "장바구니에 담은 직후 무엇이 담겼는지 알려주는 피드백이 있다",
+          "bias_stage": "Store",
+          "screen_hint": "담기 버튼을 눌렀을 때 확인 팝업·장바구니 숫자 변화 등 담겼다는 신호가 있는지",
+          "pass_criteria": "담기 직후 확인 문구·팝업·장바구니 개수 변화 중 하나로 담겼다는 것이 즉시 보인다",
+          "fail_signal": "담기 후 화면이 그대로라 담긴 건지 알 수 없다",
+          "mobile_screenshot_judgeable": false
+        }
+      ]
+    },
+    {
+      "section": "Product Page — 제품 개요",
+      "items": [
+        {
+          "id": "PP-O1",
+          "item_ko": "상품명이 설명적이다 (무엇인지·어떤 특징인지 이름만으로 안다)",
+          "bias_stage": "Interpret",
+          "screen_hint": "상품명이 무엇인지 말해 주는지, 모델 코드·브랜드 약어 위주인지",
+          "pass_criteria": "상품명에 품목·용도와 주요 특징(소재·계절·구성) 중 하나 이상이 들어 있다",
+          "fail_signal": "상품명이 코드·약어·브랜드 라인명 위주라 무엇인지 알 수 없다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "PP-O4",
+          "item_ko": "평점·후기 수가 첫 화면 상품명·가격 영역에 노출된다 (노출 위치만 본다)",
+          "bias_stage": "Act",
+          "screen_hint": "가격을 보기 전에, 첫 화면 안에서 평점·후기 수가 눈에 들어오는 자리에 있는지. 숫자 자체가 있는지 없는지는 BIAS `A3`에서 본다",
+          "pass_criteria": "첫 화면 상품명·가격 영역에 평점 또는 후기 수가 표시된다",
+          "fail_signal": "첫 화면에는 평점·후기 수가 없고 상세 본문 아래로 한참 내려가야 나온다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "PP-O5",
+          "item_ko": "이 상품의 핵심 포인트가 3줄 안팎으로 먼저 요약돼 있다",
+          "bias_stage": "Interpret",
+          "screen_hint": "긴 상세 이미지를 다 보기 전에, 핵심만 짧게 읽고 판단할 수 있는 요약이 있는지",
+          "pass_criteria": "상세 본문 시작 전에 핵심 포인트를 3줄 안팎으로 정리한 영역이 있다",
+          "fail_signal": "요약 없이 곧바로 긴 상세 이미지가 시작된다",
+          "mobile_screenshot_judgeable": true
+        }
+      ]
+    },
+    {
+      "section": "Product Page — 이미지",
+      "items": [
+        {
+          "id": "PP-I2",
+          "item_ko": "소재·마감·디테일을 확인할 수 있는 클로즈업 컷이 있다",
+          "bias_stage": "Interpret",
+          "screen_hint": "만져볼 수 없으므로 소재·마감을 짐작할 확대 컷이 필요하다",
+          "pass_criteria": "소재 표면·마감·디테일이 보이는 클로즈업 이미지가 한 장 이상 있다",
+          "fail_signal": "전체 연출 컷만 있고 소재·디테일을 확대해 보여주는 이미지가 없다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "PP-I3",
+          "item_ko": "실사용 맥락 컷(착용·설치·배치 등 실제 크기와 쓰임이 보이는 컷)이 있다",
+          "bias_stage": "Interpret",
+          "screen_hint": "이 상품이 실제 사용 환경에서 어떤 크기·쓰임으로 보이는지 그림으로 판단할 수 있는지",
+          "pass_criteria": "실사용 환경에서 착용·설치·배치된 상태의 컷이 있어 실제 크기감·쓰임이 보인다",
+          "fail_signal": "제품 단독 컷만 있어 실사용 환경에서의 모습을 알 수 없다",
+          "mobile_screenshot_judgeable": true
+        }
+      ]
+    },
+    {
+      "section": "Product Page — CTA·옵션",
+      "items": [
+        {
+          "id": "PP-C1",
+          "item_ko": "'장바구니 담기'가 화면에서 가장 눈에 띄는 버튼이다",
+          "bias_stage": "Act",
+          "screen_hint": "쿠폰받기·찜하기·바로구매 등과 섞여 담기 버튼이 묻히지 않는지",
+          "pass_criteria": "담기 버튼이 주변 버튼보다 크거나 색이 강해 먼저 인지된다",
+          "fail_signal": "담기 버튼이 다른 버튼들과 크기·색이 같아 어느 것을 눌러야 할지 구분되지 않는다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "PP-C5",
+          "item_ko": "배송비 기준·배송 예정일이 담기 버튼 근처에 있다",
+          "bias_stage": "Interpret",
+          "screen_hint": "무료배송 기준 금액과 언제 받는지가 결정 시점에 보이는지",
+          "pass_criteria": "담기 버튼과 같은 화면에 배송비 기준 또는 배송 예정 안내가 있다",
+          "fail_signal": "배송 안내가 상세 본문 맨 아래 고지 영역에만 있어 결정 시점에는 보이지 않는다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "PP-C6",
+          "item_ko": "상세 화면 안에 간편결제 바로구매 버튼이 노출된다",
+          "bias_stage": "Act",
+          "screen_hint": "간편결제 바로구매 버튼이 상세 화면(담기·구매 버튼 근처)에 보이는지. 결제 단계로 넘어간 뒤에 어떤 수단이 뜨는지는 여기서 보지 않는다",
+          "pass_criteria": "상세 화면 안에 간편결제 바로구매 버튼이 노출된다",
+          "fail_signal": "담기·구매 버튼이 보이는 캡처 어디에도 간편결제 바로구매 버튼이 없다",
+          "mobile_screenshot_judgeable": true
+        }
+      ]
+    },
+    {
+      "section": "Product Page — 사회적 증거",
+      "items": [
+        {
+          "id": "PP-S1",
+          "item_ko": "후기 영역이 상세 본문과 시각적으로 구분된다",
+          "bias_stage": "Block",
+          "screen_hint": "긴 이미지 흐름 속에서 후기가 시작되는 지점을 알아볼 수 있는지",
+          "pass_criteria": "후기 영역 앞에 구분선·소제목·배경 변화 등이 있어 여기부터 후기임을 알 수 있다",
+          "fail_signal": "상세 이미지와 후기가 같은 흐름으로 이어져 후기가 시작되는 지점을 알 수 없다",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "PP-S2",
+          "item_ko": "고객이 직접 찍은 사진 후기가 있다",
+          "bias_stage": "Act",
+          "screen_hint": "연출 컷이 아닌 실사용 사진으로 색·두께를 확인할 수 있는지. 후기는 리뷰 탭을 눌러야 나오는 경우가 많다 — 리뷰 탭·아코디언이 접혀 있으면 `N/A`다",
+          "pass_criteria": "고객이 올린 사진이 포함된 후기가 노출된다",
+          "fail_signal": "리뷰 탭을 펼친 상태 캡처에서도 사진 후기가 없음",
+          "mobile_screenshot_judgeable": true
+        }
+      ]
+    },
+    {
+      "section": "Product Page — 상세 본문·안심",
+      "items": [
+        {
+          "id": "PP-B1",
+          "item_ko": "소재·구성 성분과 관리 방법이 상세에 명시돼 있다",
+          "bias_stage": "Interpret",
+          "screen_hint": "관리 가능 여부가 구매 결정을 가르는 정보다. 소재·관리 정보는 '상품정보제공고시' 탭이나 접힌 아코디언에 들어 있는 경우가 많다 — 탭·아코디언이 접혀 있으면 `N/A`다",
+          "pass_criteria": "소재·구성 성분과 관리 방법(세탁·보관·사용 방법)이 상세에 적혀 있다",
+          "fail_signal": "탭·아코디언을 펼친 상태 캡처에서도 소재·구성 성분이나 관리 방법이 없음",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "PP-B2",
+          "item_ko": "구성품이 무엇이 몇 개 들어 있는지 목록으로 적혀 있다",
+          "bias_stage": "Interpret",
+          "screen_hint": "구성품과 수량 목록이 옵션별로 명확한지. 구성품 목록도 별도 탭·접힌 아코디언에 있는 경우가 많다 — 탭·아코디언이 접혀 있으면 `N/A`다",
+          "pass_criteria": "옵션별 구성품과 수량이 목록으로 적혀 있다",
+          "fail_signal": "탭·아코디언을 펼친 상태 캡처에서도 구성품과 수량 목록이 없음",
+          "mobile_screenshot_judgeable": true
+        },
+        {
+          "id": "PP-B4",
+          "item_ko": "교환·반품 조건을 결정 전에 볼 수 있다",
+          "bias_stage": "Store",
+          "screen_hint": "개봉 후 교환 가능 여부·반품 배송비가 담기 전에 확인되는지. 교환·반품은 '배송/교환/반품' 별도 탭이나 접힌 아코디언에 들어 있는 경우가 많다 — 탭·아코디언이 접혀 있으면 `N/A`다",
+          "pass_criteria": "교환·반품 조건이 상세 안에 적혀 있어 담기 전에 읽을 수 있다",
+          "fail_signal": "탭·아코디언을 펼친 상태 캡처에서도 교환·반품 조건이 없음",
+          "mobile_screenshot_judgeable": true
+        }
+      ]
+    }
+  ]
+}

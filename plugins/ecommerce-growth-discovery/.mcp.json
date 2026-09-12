@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "analytics-mcp": {
+      "command": "uvx",
+      "args": ["analytics-mcp"]
+    },
+    "meta-ads": {
+      "type": "http",
+      "url": "https://mcp.facebook.com/ads"
+    }
+  }
+}
