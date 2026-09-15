@@ -40,11 +40,14 @@ from typing import Optional
 
 Z_95 = 1.959963985425836  # 95% 양측 정규분포 임계값 (수학적으로 고정, 코치 확인 불필요)
 
-# ⚠️확인필요 — 코치 확정: SRM p-value 임계 (ok >=0.01, warn 0.001~0.01, alarm <0.001)
+# DEC-021 확정(후보값 채택 — 세션 전 우디 재확인) · 정본은
+# cro-experiment-decision/references/thresholds.md ①: SRM p-value 임계
+# (ok >=0.01, warn 0.001~0.01, alarm <0.001)
 SRM_P_WARN = 0.01
 SRM_P_ALARM = 0.001
 
-# ⚠️확인필요 — 코치 확정: 판정 statsig% 임계값. WIN/LOSE는 (1-alpha_effective)*100로
+# DEC-021 확정 · 정본은 cro-experiment-decision/references/thresholds.md ②:
+# 판정 statsig% 임계값. WIN/LOSE는 (1-alpha_effective)*100로
 # 대체되므로(§ compute_alpha_effective), 아래 95.0은 --alpha 0.05 기본값일 때의 값이다.
 STATSIG_WIN_PCT_DEFAULT = 95.0
 STATSIG_CONTINUE_PCT = 80.0
