@@ -20,7 +20,7 @@
 | 2 | **Preservation** | 레이아웃·색상·폰트·상태바·내비게이션 등 나머지 전부를 그대로 유지 | Preservation |
 | 3 | **Target 지목** | [노출 위치] 슬롯 — 바꿀 영역만 정확히 지목 | Binding(어디를 건드리는지) |
 | 4 | **Change 내용** | [헤드라인]/[이미지]/[CTA] 슬롯 — 무엇으로 바뀌는지 | Scene description |
-| 5 | **스타일 정합** | 앱의 기존 시각 스타일(카드 형태·둥근 모서리·브랜드 컬러)에 맞추라는 지시 | Camera and lighting(톤 일치) |
+| 5 | **스타일 정합** | 시그널플래너 디자인 가이드(무그림자·단일 강조색 `#501EFF`·카드 16px·Pretendard 2웨이트)에 맞추라는 지시 — `design-rules-for-mockup.md` ③ | Camera and lighting(톤 일치) |
 | 6 | **출력 규격** | 입력과 같은 해상도·비율 유지 | Resolution |
 
 원본 6부와 순서가 다른 이유: 제품 목업은 "빈 장면에 제품을 배치"하는 순서지만, 앱 편집은 "이미 완성된 화면 하나를 받아 그 안의 일부만 도려내는" 작업이라 Preservation을 Scene보다 먼저 둬야 한다. Preservation을 뒤로 미루면 모델이 이미 화면 전체를 재구성한 뒤에야 "아 참, 나머지는 유지해야 했지"를 보게 되고, 실측상 이 경우 레이아웃이 흔들린다.
@@ -44,10 +44,11 @@
 
 4. **Change 내용** — [헤드라인]/[이미지]/[CTA] 슬롯을 그대로 옮긴다. 한글 문구는 따옴표로 정확히 지정한다 (⑤ 참고)
 
-5. **스타일 정합**
+5. **스타일 정합** — 시그널플래너 디자인 가이드 문장을 쓴다. **기본 문장 1개 + 이번 변경에 해당하는 조건 문장(최대 3개)**을 `design-rules-for-mockup.md` ③에서 골라 넣는다. 아래는 기본 문장이다.
    ```
-   Match the app's existing visual style (rounded cards, brand colors in the screenshot).
+   Match the Signal Planner app design system for the changed area only: flat design with no drop shadows and no outlines around cards; the single accent color is violet #501EFF; text in dark gray #212529 or #495057; Korean sans-serif (Pretendard style) in regular or bold weight only, no oversized display type. Do not restyle anything outside the changed area.
    ```
+   - 디자인 가이드는 **바뀌는 영역에만** 적용한다. control의 다른 영역이 가이드와 달라도 고치지 않는다 — 우선순위는 E2 명세 > control 보존 > 디자인 가이드다(`design-rules-for-mockup.md` ①).
 
 6. **출력 규격**
    ```
@@ -60,7 +61,7 @@
 |---|---|---|
 | [노출 위치] | 3부 Target 지목 | 슬롯 값이 "화면 상단" 같은 표기만이면 이 가이드로 넘어오기 전에 명세를 다시 채운다 (§4-1 좋은 예 수준 필요) |
 | [헤드라인] | 4부 Change 내용 | 한글 문구는 따옴표 + "Render this Korean text exactly as written" 병기 |
-| [이미지] | 4부 Change 내용 | "변경 없음"이면 이 슬롯은 프롬프트에 아예 넣지 않는다 — 없는 것을 "바꾸지 마라"고 쓰면 오히려 모델이 그 영역을 주목하게 만든다 |
+| [이미지] | 4부 Change 내용 | "변경 없음"이면 이 슬롯은 프롬프트에 아예 넣지 않는다 — 없는 것을 "바꾸지 마라"고 쓰면 오히려 모델이 그 영역을 주목하게 만든다. **아이콘·캐릭터·사물이 필요하면 새로 그리게 하지 않고 자리표시로 두며**, 들어갈 브랜드 에셋 파일은 에셋 지정표로 따로 넘긴다 (`design-rules-for-mockup.md` ④) |
 | [CTA] | 4부 Change 내용 | "변경 없음"이면 마찬가지로 프롬프트에서 생략 |
 
 ### 워크드 예시 (HYP-A-008 소재 — 실제 조립된 프롬프트 전문)
@@ -88,21 +89,33 @@ position on the screen.
 Replace its content with a personal coverage-gap diagnosis card:
 - Headline text (render this Korean text exactly as written, in quotes):
   "OO님 보험, 여기가 비어 있어요"
-- Below the headline, show 6 coverage-type icons in a row (암/cancer,
+- Below the headline, show 6 coverage-type slots in a row (암/cancer,
   심장/heart disease, 뇌혈관/cerebrovascular, 실손/indemnity,
-  운전자/driver, 치아/dental), each icon paired with a small status mark
+  운전자/driver, 치아/dental), each slot paired with a small status mark
   distinguishing "충분" (sufficient) from "부족" (insufficient) —
   use a visually distinct but style-consistent mark for the "부족" state
   (e.g. a filled warning dot), not a color outside the app's existing
   palette.
 
-Match the app's existing visual style (rounded cards, brand colors in
-the screenshot).
+Match the Signal Planner app design system for the changed area only:
+flat design with no drop shadows and no outlines around cards; the
+single accent color is violet #501EFF; text in dark gray #212529 or
+#495057; Korean sans-serif (Pretendard style) in regular or bold weight
+only, no oversized display type. Do not restyle anything outside the
+changed area.
+Any new card has 16px rounded corners, no shadow, no border, and about
+20px inner horizontal padding; rows inside a card are separated only by
+a thin 1px #E9ECEF horizontal line.
+Mark shortfalls in red #F03E3E and surpluses in violet #501EFF; do not
+use green, sky blue, or yellow as UI fills.
+Where an icon or illustration is needed, do not draw a new one: place a
+plain light-gray #E9ECEF rounded placeholder square at the same size as
+comparable icons in the screenshot.
 
 Same aspect ratio and resolution as the input.
 ```
 
-이 예시에서 [CTA]는 "변경 없음"이므로 프롬프트에 CTA 관련 문장이 아예 없다 — ③표의 규칙대로다.
+이 예시에서 [CTA]는 "변경 없음"이므로 프롬프트에 CTA 관련 문장이 아예 없다 — ③표의 규칙대로다. 5부에는 기본 문장 + 조건 문장 3개(새 카드 · 부족/잉여 표시 · 아이콘 자리표시)가 들어갔다 — 6개 보장 아이콘은 모델이 그리지 않고 자리표시로 두며, 들어갈 에셋(예: 치아 `obj-tooth-healthy.png`, 운전자 `icon-multicolor-car.png`)은 **에셋 지정표**로 디자이너에게 넘긴다(`design-rules-for-mockup.md` ④). 파일명은 프롬프트에 적지 않는다.
 
 ## ④ 참조 이미지 어법
 
@@ -139,6 +152,16 @@ rendered) so the correct Korean copy can be added separately.
 ```
 세 번째 프롬프트 라운드로 같은 문구를 다시 시도하지 않는다 — `prompt-patterns.md`의 컷오프 규칙과 같은 이유다. 작은 텍스트 결함은 재생성으로 안 풀리는 결함이라는 실측 기록이 있고, 세 번째 라운드는 일정만 갉아먹는다.
 
+**(d) 디자인 절대 규칙 위반이 2회 재생성 뒤에도 남으면, 위반 영역 비움 프롬프트로 전환한다 (계약 §7-19).** 규칙에 맞는 문장 하나를 고르고, 중괄호는 이번 요소로 바꾼다. §7-13 비움(c)과 동시에 필요하면 두 문장을 함께 넣어 **1회**만 생성한다.
+
+| 남은 위반 | 비움 문장 |
+|---|---|
+| ③ 새로 그린 아이콘·캐릭터·사물 | `Replace the {element} with a plain light-gray #E9ECEF rounded placeholder square of the same position and size — no drawing inside it.` |
+| ① 카드 그림자·외곽선 | `Keep the text and layout of the {element}, but render its surface as a completely flat #F1F3F5 area with no shadow and no border.` |
+| ② 금지 fill (초록·하늘·노랑 버튼·배지·카드) | `Keep the text and layout of the {element}, but change its fill to flat neutral gray #CED4DA (cards: #F1F3F5) with no green, sky blue, or yellow.` |
+
+①·②는 요소를 통째로 비우지 않는다 — 카드·버튼 안의 헤드라인·CTA까지 사라지기 때문이다. 이 비움 초안도 통과하지 못하면 재시도하지 않고 착지를 포기한다(`없음 — 제작 요청 명세로 대체`).
+
 ## ⑥ 재생성 강화 문장 카탈로그
 
 결함 하나당 **문장 1개만 추가**한다. 프롬프트 전체를 다시 쓰지 않는다 — `prompt-patterns.md`의 reinforcement catalogue와 같은 방식이다.
@@ -148,7 +171,8 @@ rendered) so the correct Korean copy can be added separately.
 | 한글 깨짐 (짧은 문구인데도) | "Render the Korean text character-by-character exactly as specified in quotes — do not paraphrase, translate, or invent alternate wording." |
 | 레이아웃이 바뀜 | "Do not change the position, size, or spacing of any element outside the specified section — the rest of the screen must be pixel-identical to the input." |
 | 지정 안 한 요소까지 바뀜 | "Every UI element not explicitly mentioned above must remain unchanged, including icons, colors, and text elsewhere on the screen." |
-| 스타일이 앱과 이질적 | "The new element must use the same corner radius, shadow style, and color palette already visible in the attached screenshot — do not introduce a new visual style." |
+| 스타일이 앱과 이질적 | "The new element must use the same corner radius and color palette already visible in the attached screenshot, with no drop shadow — do not introduce a new visual style." |
+| 디자인 가이드 이탈 (그림자·외곽선·금지 fill·새로 그린 아이콘 등 — `design-rules-for-mockup.md` ⑤에서 게이트 행 ❌ 위반 또는 권고 행 ⚠️ 이탈인 항목) | "In the changed area, remove the {이탈 항목 — 예: drop shadow / card outline / green fill / drawn icon} — Signal Planner cards are flat white or #F1F3F5 surfaces with 16px corners, and #501EFF is the only accent color." (중괄호는 이번 이탈 항목 하나로 바꿔 쓴다) |
 | 비율·해상도 변형 | "Output must have the exact same pixel dimensions and aspect ratio as the input image — do not crop, letterbox, or resize." |
 | 텍스트가 흐릿함 | "Render all text at full sharpness and legibility, matching the font weight and size of comparable text elsewhere in the screenshot." |
 
@@ -159,6 +183,8 @@ rendered) so the correct Korean copy can be added separately.
 ## ⑦ 하지 말 것
 
 - **화면 전체 리디자인 요청.** "더 예쁘게", "전체적으로 개선해줘" 같은 지시는 control과 비교 불가능한 결과를 만든다. 항상 단일 축 변경으로 좁힌다.
+- **브랜드 에셋 흉내 그리기.** 시그널플래너 아이콘·캐릭터 선명이·사물 일러스트를 모델이 새로 그리게 하지 않는다. 자리표시 + 에셋 지정표로 넘긴다 (`design-rules-for-mockup.md` ④).
+- **control 영역을 디자인 가이드에 맞춰 "교정".** 지정 밖 영역은 가이드와 달라도 그대로 둔다 — 대조군 보존(§7-15)이 가이드보다 앞선다.
 - **실존 브랜드 로고·실사진 인물 합성.** 실제 보험사 로고, 실제 인물 사진을 화면에 합성하도록 요청하지 않는다.
 - **확정 안 된 문구 창작.** E2 명세가 정본이다 — 명세에 없는 카피를 모델이 지어내게 하는 프롬프트("적절한 문구를 넣어줘")는 금지한다. 문구가 아직 안 정해졌으면 프롬프트를 조립하지 말고 명세부터 채운다.
 - **마스킹 안 된 스크린샷 사용.** 보험 도메인 PII가 담긴 control 스크린샷을 마스킹 없이 외부 API로 보내지 않는다. 이 금지는 스킬 게이트가 기술적으로 막지만, 프롬프트를 조립하는 사람도 마스킹 여부를 프롬프트 작성 전에 스스로 확인해야 한다.

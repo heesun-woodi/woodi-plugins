@@ -4,3 +4,7 @@ __pycache__/
 .env
 audiodev
 .omc/
+
+# 고객사 디자인 가이드 원문 — 공개 저장소에 올리지 않는다 (참가자 로컬 경로에서 읽음, DEC-027)
+plugins/cro-experiment-design/skills/cro-variant-mockup/references/design-system/
+design.md
