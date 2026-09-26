@@ -107,21 +107,32 @@ def parse_env_file(path: Path) -> dict:
     return values
 
 
-def resolve_env_file(explicit: Optional[Path]) -> Optional[Path]:
+def resolve_env_files(explicit: Optional[Path]) -> list[Path]:
+    """키를 찾을 .env 후보를 우선순위 순으로 돌려준다.
+
+    --env가 있으면 그 파일 하나만 쓴다. 없으면 ① 실행 위치(작업 폴더)의 .env
+    ② 이 스크립트 옆(scripts/.env) 순이다. 작업 폴더가 먼저인 이유: 플러그인 캐시는
+    버전별 폴더에 설치되어 업데이트하면 scripts/.env가 옛 버전 폴더에 남는다.
+    """
     if explicit is not None:
         if not explicit.exists():
             raise SystemExit(f"지정한 --env 파일을 찾을 수 없습니다: {explicit}")
-        return explicit
-    cwd_env = Path.cwd() / ".env"
-    return cwd_env if cwd_env.exists() else None
+        return [explicit]
+    candidates = [Path.cwd() / ".env", Path(__file__).resolve().parent / ".env"]
+    found: list[Path] = []
+    for c in candidates:
+        if c.exists() and all(c.resolve() != f.resolve() for f in found):
+            found.append(c)
+    return found
 
 
 def load_provider_keys(explicit_env: Optional[Path]) -> dict:
-    env_path = resolve_env_file(explicit_env)
-    file_values = parse_env_file(env_path) if env_path else {}
+    # 키마다 먼저 값이 있는 파일을 쓴다 — 작업 폴더에 키 없는 다른 .env가 있어도
+    # scripts/.env의 키가 가려지지 않게 한다. 파일에 없으면 환경변수.
+    file_values_list = [parse_env_file(f) for f in resolve_env_files(explicit_env)]
     keys = {}
     for name in ("GEMINI_API_KEY", "OPENAI_API_KEY"):
-        value = file_values.get(name) or os.environ.get(name)
+        value = next((fv[name] for fv in file_values_list if fv.get(name)), None) or os.environ.get(name)
         if value:
             keys[name] = value
     return keys

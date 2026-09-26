@@ -116,7 +116,7 @@
 E2(Variant 구체화)에서 시안이 없을 때, 참가자 본인 이미지 생성 API key와 대조군(control) 화면 스크린샷이 있으면 페어 스킬 `cro-variant-mockup`으로 AI 초안(목업)을 만들어 볼 수 있습니다. **key가 없어도 본체 기능은 전부 동작**하며, 이 경로는 세션을 막는 조건이 아닙니다.
 
 1. **key 발급** — Gemini(권장, 무료 티어 있음): https://aistudio.google.com/apikey / OpenAI(대안, 결제수단 필요): https://platform.openai.com/api-keys
-2. **`.env` 세팅** — `skills/cro-variant-mockup/scripts/.env.example`을 같은 폴더에 `.env`로 복사한 뒤 발급받은 key를 채웁니다. `.env`는 저장소에 커밋하지 않습니다.
+2. **`.env` 세팅** — `skills/cro-variant-mockup/scripts/.env.example`을 **작업 폴더**(클로드를 실행하는 폴더)에 `.env`로 복사한 뒤 발급받은 key를 채웁니다. `scripts/.env`에 둬도 찾지만, 플러그인을 업데이트하면 옛 버전 폴더에 남으므로 작업 폴더를 권장합니다. `.env`는 저장소에 커밋하지 않습니다.
 3. **비용** — 장당 약 $0.04 (제공자·모델·해상도에 따라 변동)
 4. **게이트 5종** — ① PII 마스킹(§7-12, 실고객 정보가 보이는 스크린샷은 마스킹 전 외부 API로 보내지 않음) ② 한글 문구 검수(§7-13, 생성 이미지 문구를 확정 문구와 글자 단위로 대조) ③ 대조군 보존(§7-15, 명세가 지정하지 않은 영역 — 상태바·숫자·통계·CTA 등 — 이 조용히 바뀌지 않았는지 control과 나란히 대조) ④ AI 초안 표기(§7-14, 파일명·노션 캡션·E2 시안 행 세 곳 모두에 `AI 초안`과 provider/model 병기) ⑤ 디자인 절대 규칙(§7-19 · DEC-027, 바뀌는 영역에 카드 그림자·외곽선 / br-sky·green·yellow 컴포넌트 fill / 모델이 새로 그린 브랜드 아이콘·캐릭터가 있으면 착지 불가 — 2회 재생성 뒤에도 남으면 위반 영역 비움 초안, 명세가 지정한 위반은 표기 후 면제)
 5. **디자인 가이드 원문** — 시그널플래너 `design.md`는 고객사 자료라 이 공개 저장소에 없습니다. SSOT 저장소의 `50_reference/design-system/design.md` 경로를 `.env`의 `DESIGN_GUIDE_PATH`에 적으면 에셋 파일명까지 골라 드리고, 없어도 초안용 규칙은 그대로 적용됩니다.
