@@ -11,6 +11,8 @@ dc 계약(dc-output-contract.md v1.0) D4a 2·3·4·5행이 쓰는 숫자를 재�
   - 연장 종료일 제안 = max(예상 도달일, 최소 관찰 종료일)   ← dc §7-4
   - 원 종료일 대비 = 연장 종료일 제안 − 종료 예정일  (`{N}일 늦음` 형태로만 적는다)
   - --project: 현재 전환율이 그대로 유지될 때 필요 n에 도달한 시점의 z·stat-sig
+  - --bonferroni: 사용하지 않음(DEC-028) — 호환용으로만 남는다. 대조군 vs 각 실험군 1:1
+    비교마다 α 0.05로 보며 다중비교 보정을 하지 않는다. 호출 예시에 붙이지 않는다.
 
 ⚠️ --project는 샘플 게이트 도달 후에만 돌린다 (dc §7-4). 도달 전 예상 유의성은 피킹의
    다른 이름이다 — 이 스크립트는 그 판단을 대신하지 않고, 호출한 쪽이 지킨다.
@@ -372,7 +374,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--control", type=int, nargs=2, metavar=("N", "X"), help="--project용 대조군 노출·전환")
     p.add_argument("--treatment", type=int, nargs=2, metavar=("N", "X"), help="--project용 실험군 노출·전환")
     p.add_argument("--alpha", type=float, default=0.05, help="유의수준 (기본 0.05)")
-    p.add_argument("--bonferroni", type=int, help="다중비교 보정 계수 K")
+    p.add_argument("--bonferroni", type=int, help="사용하지 않음(DEC-028) — 호환용. 판정은 1:1 비교마다 α 0.05, 보정 없음")
     p.add_argument("--format", choices=["md", "json"], default="md")
     return p
 
@@ -397,6 +399,8 @@ def validate_and_normalize(args: argparse.Namespace) -> argparse.Namespace:
             _fail("--project 에는 --control N X 와 --treatment N X 가 필요합니다.")
         if args.control[0] <= 0 or args.treatment[0] <= 0:
             _fail("--control/--treatment 의 노출수는 1 이상이어야 합니다.")
+    if args.bonferroni is not None:
+        print("⚠️ --bonferroni는 DEC-028로 사용하지 않습니다 — 호환용으로만 α를 나눕니다. 판정은 1:1 비교마다 p ≤ 0.05입니다.", file=sys.stderr)
     if args.bonferroni is not None and args.bonferroni < 1:
         _fail("--bonferroni 는 1 이상이어야 합니다.")
     return args

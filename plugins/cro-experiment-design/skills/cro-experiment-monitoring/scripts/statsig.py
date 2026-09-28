@@ -17,6 +17,10 @@
     - SRM 우선: srm_flag=alarm이면 게이트 도달 여부와 무관하게 판정 필드를
       마스킹하고, mode=verdict일 때만 verdict를 DESIGN_FAULT_SRM으로 채운다
       (--force-verdict로도 해제되지 않는다).
+    - 판정(DEC-028): 실험군마다 대조군과 1:1로 p ≤ alpha(기본 0.05)를 본다.
+      다중비교 보정은 하지 않는다. WIN = 유의 AND 실험군 > 대조군 — MDE는
+      승 조건이 아니다(mde_met은 참고 표기로만 출력). Guardrail 불하락은 이
+      스크립트가 계산하지 않는다(Primary만 입력받는다).
     - KB09 예시 1((886,171)/(909,185) → p≈0.61·CI[-2.65,+4.73]·71%)과는
       부합하지만, KB09 예시 2·3의 기재값(p 0.07/0.09, 93%/96%)은 이 스크립트의
       공식으로 재현되지 않는다 — 오라클로 쓰지 않는다.
@@ -49,6 +53,7 @@ SRM_P_ALARM = 0.001
 # DEC-021 확정 · 정본은 cro-experiment-decision/references/thresholds.md ②:
 # 판정 statsig% 임계값. WIN/LOSE는 (1-alpha_effective)*100로
 # 대체되므로(§ compute_alpha_effective), 아래 95.0은 --alpha 0.05 기본값일 때의 값이다.
+# DEC-028: 1:1 비교마다 alpha 0.05 — 보정 없음. --bonferroni는 호환용으로만 남는다.
 STATSIG_WIN_PCT_DEFAULT = 95.0
 STATSIG_CONTINUE_PCT = 80.0
 
@@ -262,14 +267,12 @@ def compute_alpha_effective(alpha: float, bonferroni: Optional[int]) -> float:
 def determine_verdict(
     statsig_pct: float,
     diff_pp: float,
-    mde_met: Optional[bool],
     win_threshold_pct: float,
     continue_threshold_pct: float,
 ) -> str:
+    """DEC-028: MDE 달성 여부는 판정에 쓰지 않는다 — 유의 AND 방향만 본다."""
     if statsig_pct >= win_threshold_pct:
         if diff_pp > 0:
-            if mde_met is False:
-                return "INCONCLUSIVE"
             return "WIN"
         if diff_pp < 0:
             return "LOSE"
@@ -359,7 +362,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mde-rel", type=float, default=None, help="상대 MDE (비율, --baseline 필수)")
     parser.add_argument("--baseline", type=float, default=None, help="--mde-rel용 기준 전환율 (비율)")
     parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA, help="유의수준 (기본 0.05)")
-    parser.add_argument("--bonferroni", type=int, default=None, help="다중비교 보정 계수 K")
+    parser.add_argument(
+        "--bonferroni", type=int, default=None,
+        help="사용하지 않음(DEC-028) — 호환용. 판정은 1:1 비교마다 alpha(기본 0.05), 보정 없음",
+    )
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="베이지안 mc 난수 시드")
     parser.add_argument("--draws", type=int, default=DEFAULT_DRAWS, help="베이지안 mc 샘플 수")
     parser.add_argument("--bayes-method", choices=["mc", "integrate"], default="mc")
@@ -395,6 +401,8 @@ def validate_args(args: argparse.Namespace, n_arms: int) -> None:
         _fail("--ratio 값의 합은 0보다 커야 합니다.")
     if args.draws is not None and args.draws < 1:
         _fail("--draws는 1 이상이어야 합니다.")
+    if args.bonferroni is not None:
+        print("⚠️ --bonferroni는 DEC-028로 사용하지 않습니다 — 호환용으로만 α를 나눕니다. 판정은 1:1 비교마다 p ≤ 0.05입니다.", file=sys.stderr)
     if args.bonferroni is not None and args.bonferroni < 1:
         _fail("--bonferroni는 1 이상의 정수여야 합니다.")
 
@@ -467,15 +475,14 @@ def build_result(args: argparse.Namespace) -> dict:
     alpha_effective = compute_alpha_effective(args.alpha, args.bonferroni)
     win_threshold_pct = (1 - alpha_effective) * 100
 
-    # 다중비교 보정 게이트 (계약 §3-8): 판정 군 수(실험군)가 2개 이상인데
-    # --bonferroni 미지정이면 통계값은 유지하되 verdict만 마스킹한다.
-    needs_bonferroni_warning = len(treatments_raw) >= 2 and args.bonferroni is None
+    # 다중비교 (계약 §3-8 · DEC-028): 실험군마다 대조군과 1:1로 alpha에서 판정한다.
+    # 보정하지 않으며 판정을 마스킹하지 않는다. --bonferroni는 호환용으로만 반영한다.
     if args.bonferroni:
         multiple_comparison_label = f"Bonferroni α={alpha_effective:.4f}({args.bonferroni}비교)"
     elif len(treatments_raw) < 2:
         multiple_comparison_label = "해당 없음(2군)"
     else:
-        multiple_comparison_label = "⚠️확인필요"
+        multiple_comparison_label = "보정 없음 — 1:1 비교 (DEC-028)"
 
     treatments_out = []
     for (n, x), label in zip(treatments_raw, treatment_labels):
@@ -509,7 +516,7 @@ def build_result(args: argparse.Namespace) -> dict:
             }
         else:
             verdict = determine_verdict(
-                stats["statsig_pct"], stats["diff_pp"], mde_met, win_threshold_pct, STATSIG_CONTINUE_PCT
+                stats["statsig_pct"], stats["diff_pp"], win_threshold_pct, STATSIG_CONTINUE_PCT
             )
             entry = {
                 "label": label,
@@ -527,9 +534,6 @@ def build_result(args: argparse.Namespace) -> dict:
                 "mde_met": mde_met,
                 "verdict": verdict,
             }
-            if needs_bonferroni_warning:
-                entry["verdict"] = None
-                entry["suppressed_reason"] = "multiple_comparison"
         treatments_out.append(entry)
 
     result = {

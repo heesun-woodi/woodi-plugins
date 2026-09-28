@@ -48,6 +48,15 @@
 - **디자이너 최종 시안** 제작 대행 → 여전히 하지 않습니다. 명세 작성·제작 요청·받은 것의 착지까지만 합니다. **AI 초안(목업) 생성 보조**는 페어 스킬 `cro-variant-mockup`이 하며(계약 v1.1, DEC-009) — 참가자 본인 API key가 있어야 하는 **선택 기능**이고, 산출물은 항상 `AI 초안 — 검토 필요`로만 착지합니다
 - 노션 자동 기입(붙여넣기 왕복) → 갱신 블록을 출력할 뿐, 노션 페이지를 직접 쓰지 않습니다
 
+### v0.9.0에서 달라진 것 (DEC-028 · 2026-09-29)
+
+판정 기준 3가지가 바뀌었습니다 — 참가자 결과 보고서 코치 리뷰(9/28)에서 나온 기준입니다.
+
+- **Primary 유의성은 대조군 vs 각 실험군을 1:1로 따로 계산해 p ≤ 0.05로 판정합니다.** 다중비교 보정(Bonferroni)은 쓰지 않습니다 — 실험군이 여럿이어도, 사전 선언 구간이어도 같습니다. 설계서 표본 산정 α도 0.05입니다(`판정 군 수`는 기간 병목 계산에만). `statsig.py`는 실험군이 2개 이상일 때 더 이상 판정을 가리지 않고, `--bonferroni`는 호환용으로만 남았습니다.
+- **Guardrail 기준은 「대조군 대비 불하락(점추정)」 하나입니다.** 설계서에서 `−2%p 이내` 같은 숫자 허용선을 정하지 않습니다. 숫자는 「N%p 넘게 떨어지면 즉시 중단」 같은 **조기 종료 조건**에만 씁니다.
+- **「실측 차이 ≥ MDE」는 승 조건이 아닙니다.** 승 = Primary 1:1 p ≤ 0.05 AND 실험군 > 대조군 AND Guardrail 전부 불하락. MDE는 표본 산정에만 쓰고, 보고서에서 「MDE 미달」을 판정 근거로 쓰지 않습니다.
+- 계약 4종 동시 개정: `ed` v1.7 · `em` v1.3 · `dc` v1.4 · `er` v1.2. 행 이름 `Guardrail + 불하락 기준(각 1행)`·`Guardrail 전부 불하락`으로 통일, 종료 의사결정 D3는 11행.
+
 ### v0.7.2에서 달라진 것 (DEC-025 결정 6 · 2026-09-22)
 
 - **실험설계서에 「개발 리소스·일정 확인」 3행이 필수로 들어갑니다** — E6 샘플사이즈·기간 표의 실현성 판정 뒤에 **구현 담당 · 예상 구현 기간과 릴리즈 일정(앱 배포 주기 반영) · 일정 확인 상태**를 붙입니다. `미확인`이면 `⚠️미정`을 달고 노션 착지 안내에 「런칭 예정일은 개발 일정 확인 후 확정」이 덧붙습니다. 9/21 중간 회고에서 「개발자 일정을 고려하지 못하고 기술 구현 리소스만으로 Ease를 체크해 일정이 밀렸다」가 Problem으로 나온 자리입니다.
@@ -251,7 +260,7 @@ python3 skills/cro-experiment-monitoring/scripts/statsig.py \
 3. **근거 태그 필수** — 모든 해석 문장에 `[실측]`·`[계산]`·`[해석]`·`[가정]` 중 하나를 붙이고, `[해석]`에는 근거 행 번호를 병기합니다. **번호 없는 `[해석]`은 `[가정]`입니다.**
 4. **사전 선언 세그만 판정** — 설계서에 미리 선언된 구간만 판정이고 나머지는 힌트입니다. 탐색적 세그먼트로 승패를 말하지 않습니다.
 5. **PII 집계만** — 금융·보험 도메인이라 개별 사용자 행·원천 식별자는 어떤 표에도 블록에도 옮기지 않습니다. 세션 리플레이도 집계만 인용합니다.
-6. **배포 반영 ≠ 승** — 반영 가능 여부는 「Primary 승 AND Guardrail·Secondary 불하락」이고, 설계서의 자체 허용 범위가 「불하락」을 대체하지 않습니다. 🚫 스킬이 「이겼으니 반영하면 된다」를 적지 않습니다.
+6. **배포 반영 ≠ 승** — 반영 가능 여부는 「Primary 승 AND Guardrail·Secondary 불하락」이고, 불하락은 대조군 대비 점추정이며 설계서는 숫자 허용선을 두지 않습니다(DEC-028). 🚫 스킬이 「이겼으니 반영하면 된다」를 적지 않습니다.
 7. **읽기 전용** — 노션·EXP 파일·로컬 파일에 어느 경로로도 쓰지 않고 git commit도 하지 않습니다. **읽기가 허용됐다는 사실이 쓰기를 허용하지 않습니다.**
 
 **산출물** — S0(인테이크·접근 경로·보고서 라벨) → S1(설계값 전사) → S1b(설계↔화면 매핑) → S2a·S2b(실측·판정 수령) → S3(결과 유형 분류) → S4(유형별 분석) → S5a·S5b(세그먼트·정성) → S6a·S6b·S6c(조립) → S7(피드백 반영). **표 13종이 한 번에 나오고, 요약본과 상세본으로 나누지 않습니다.**
@@ -289,14 +298,14 @@ python3 skills/cro-experiment-monitoring/scripts/statsig.py \
 
 반영하면 **v{n+1} 전문을 다시 냅니다** — 바뀐 부분만 내지 않습니다. 거부한 코멘트도 변경 이력에서 지우지 않습니다.
 
-**사전 준비** — 모니터링·종료 의사결정 스킬과 같습니다. 앰플리튜드 MCP 연결은 선택이고, 연결이 안 돼 있어도 Chrome으로 화면을 열어 읽거나 값을 붙여넣는 경로로 동작합니다. 통계 계산은 모니터링 스킬의 `statsig.py`를 **경로로 호출**합니다(복사하지 않습니다) — 3군 이상이면 `--bonferroni {축소 후 비교 수 = 판정 군 수 − 1}`가 반드시 붙습니다.
+**사전 준비** — 모니터링·종료 의사결정 스킬과 같습니다. 앰플리튜드 MCP 연결은 선택이고, 연결이 안 돼 있어도 Chrome으로 화면을 열어 읽거나 값을 붙여넣는 경로로 동작합니다. 통계 계산은 모니터링 스킬의 `statsig.py`를 **경로로 호출**합니다(복사하지 않습니다) — 보정 옵션은 붙이지 않고 대조군 vs 각 실험군 1:1 비교를 p ≤ 0.05로 읽습니다(DEC-028).
 
 ## 정본
 
-출력 규격 정본은 `ed-output-contract.md` **v1.4.2** (`habitfactory/prep-week/_specs/`)이며, 이 플러그인의 `references/output-contract.md`는 그 사본입니다.
+출력 규격 정본은 `ed-output-contract.md` **v1.7**(DEC-028 · 2026-09-29 개정 · `habitfactory/prep-week/_specs/`)이며, 이 플러그인의 `references/output-contract.md`는 그 사본입니다.
 
-런칭 후 모니터링·종료 판정의 출력 규격 정본은 `em-output-contract.md` **v1.2.2**(DEC-024 · 2026-09-20 개정 · `habitfactory/prep-week/_specs/`)이며, 사본은 `skills/cro-experiment-monitoring/references/output-contract.md`입니다.
+런칭 후 모니터링·종료 판정의 출력 규격 정본은 `em-output-contract.md` **v1.3**(DEC-028 · 2026-09-29 개정 · `habitfactory/prep-week/_specs/`)이며, 사본은 `skills/cro-experiment-monitoring/references/output-contract.md`입니다.
 
-종료 의사결정의 출력 규격 정본은 `dc-output-contract.md` **v1.2**(DEC-021 제정 · DEC-024 개정 · `habitfactory/prep-week/_specs/`)이며, 사본은 `skills/cro-experiment-decision/references/output-contract.md`입니다. 임계값 10항목의 단일 저장소는 같은 스킬의 `references/thresholds.md`입니다.
+종료 의사결정의 출력 규격 정본은 `dc-output-contract.md` **v1.4**(DEC-021 제정 · DEC-028 개정 · `habitfactory/prep-week/_specs/`)이며, 사본은 `skills/cro-experiment-decision/references/output-contract.md`입니다. 임계값 10항목의 단일 저장소는 같은 스킬의 `references/thresholds.md`입니다.
 
-결과 보고서의 출력 규격 정본은 `er-output-contract.md` **v1.0**(DEC-024 · 2026-09-20 제정 · `habitfactory/prep-week/_specs/`)이며, 사본은 `habitfactory-cro-ssot/50_reference/er-output-contract.md`와 `skills/cro-experiment-report/references/output-contract.md` 두 곳입니다.
+결과 보고서의 출력 규격 정본은 `er-output-contract.md` **v1.2**(DEC-024 제정 · DEC-028 개정 · `habitfactory/prep-week/_specs/`)이며, 사본은 `habitfactory-cro-ssot/50_reference/er-output-contract.md`와 `skills/cro-experiment-report/references/output-contract.md` 두 곳입니다.

@@ -152,20 +152,20 @@ class TestMde(unittest.TestCase):
 
 class TestVerdict(unittest.TestCase):
     def test_win(self):
-        self.assertEqual(statsig.determine_verdict(100.0, 6.6, True, 95.0, 80.0), "WIN")
-        self.assertEqual(statsig.determine_verdict(100.0, 6.6, None, 95.0, 80.0), "WIN")
+        self.assertEqual(statsig.determine_verdict(100.0, 6.6, 95.0, 80.0), "WIN")
 
     def test_lose(self):
-        self.assertEqual(statsig.determine_verdict(100.0, -6.6, None, 95.0, 80.0), "LOSE")
+        self.assertEqual(statsig.determine_verdict(100.0, -6.6, 95.0, 80.0), "LOSE")
 
-    def test_inconclusive_mde_not_met(self):
-        self.assertEqual(statsig.determine_verdict(96.0, 1.0, False, 95.0, 80.0), "INCONCLUSIVE")
+    def test_small_significant_diff_is_win(self):
+        # DEC-028: MDE는 승 조건이 아니다 — 유의 AND 실험군 > 대조군이면 차이가 작아도 WIN
+        self.assertEqual(statsig.determine_verdict(96.0, 1.0, 95.0, 80.0), "WIN")
 
     def test_continue_80(self):
-        self.assertEqual(statsig.determine_verdict(85.0, 1.0, None, 95.0, 80.0), "CONTINUE_80")
+        self.assertEqual(statsig.determine_verdict(85.0, 1.0, 95.0, 80.0), "CONTINUE_80")
 
     def test_inconclusive_low_statsig(self):
-        self.assertEqual(statsig.determine_verdict(42.37, 1.05, None, 95.0, 80.0), "INCONCLUSIVE")
+        self.assertEqual(statsig.determine_verdict(42.37, 1.05, 95.0, 80.0), "INCONCLUSIVE")
 
 
 class TestGateLogic(unittest.TestCase):
@@ -200,9 +200,9 @@ class TestBonferroni(unittest.TestCase):
         win_threshold = (1 - alpha_eff) * 100
         self.assertAlmostEqual(win_threshold, 97.5)
         # statsig 96%는 K=2 하에서는 WIN이 아니라 CONTINUE_80 판정이어야 한다
-        self.assertEqual(statsig.determine_verdict(96.0, 1.0, None, win_threshold, 80.0), "CONTINUE_80")
+        self.assertEqual(statsig.determine_verdict(96.0, 1.0, win_threshold, 80.0), "CONTINUE_80")
         # 보정 없으면 동일 96%가 WIN
-        self.assertEqual(statsig.determine_verdict(96.0, 1.0, None, 95.0, 80.0), "WIN")
+        self.assertEqual(statsig.determine_verdict(96.0, 1.0, 95.0, 80.0), "WIN")
 
 
 class TestCliJson(unittest.TestCase):
@@ -323,6 +323,21 @@ class TestCliJson(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         data = json.loads(proc.stdout)
         self.assertFalse(data["treatments"][0]["mde_met"])
+
+    def test_significant_win_with_mde_not_met_is_win(self):
+        # DEC-028: 유의한 승인데 설계 MDE에 못 미쳐도 WIN — mde_met은 참고 표기로만 남는다
+        proc = run_cli([
+            "--control", "10000", "6580",
+            "--treatment", "10000", "6800",
+            "--mde-abs", "0.05",
+            "--format", "json",
+        ])
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        data = json.loads(proc.stdout)
+        t = data["treatments"][0]
+        self.assertLess(t["p_two_sided"], 0.05)
+        self.assertFalse(t["mde_met"])
+        self.assertEqual(t["verdict"], "WIN")
 
     def test_win_case_large_sample(self):
         proc = run_cli([
@@ -556,24 +571,30 @@ class TestArgValidation(unittest.TestCase):
 
 
 class TestMultipleComparisonGate(unittest.TestCase):
-    """[Major] 3군 이상에서 --bonferroni 미지정이면 판정을 마스킹한다 (계약 §3-8)."""
+    """DEC-028: 3군 이상도 --bonferroni 없이 실험군마다 대조군과 1:1로 p ≤ 0.05 판정한다 (계약 §3-8)."""
 
-    def test_three_arm_without_bonferroni_masks_verdict(self):
+    def test_three_arm_without_bonferroni_judges_each_pair_at_005(self):
+        # 실험군1 p≈0.033(보정 시 α 0.025에선 유의 아님) · 실험군2 p≈0.26
         proc = run_cli([
             "--control", "1000", "180",
-            "--treatment", "1000", "210",
+            "--treatment", "1000", "218",
             "--treatment", "1000", "200",
             "--ratio", "34", "33", "33",
             "--gate-n", "100",
             "--format", "both",
         ])
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn("다중비교 보정 | ⚠️확인필요", proc.stdout)
+        self.assertIn("다중비교 보정 | 보정 없음 — 1:1 비교 (DEC-028)", proc.stdout)
+        self.assertNotIn("⚠️확인필요", proc.stdout)
         json_part = proc.stdout[proc.stdout.rindex("\n\n{") + 2:]
         data = json.loads(json_part)
+        self.assertAlmostEqual(data["alpha_effective"], 0.05)
+        t1, t2 = data["treatments"]
+        self.assertTrue(0.025 < t1["p_two_sided"] < 0.05)
+        self.assertEqual(t1["verdict"], "WIN")
+        self.assertEqual(t2["verdict"], "INCONCLUSIVE")
         for t in data["treatments"]:
-            self.assertIsNone(t["verdict"])
-            # 통계값은 게이트 통과 시 유지되어야 한다
+            self.assertNotIn("suppressed_reason", t)
             self.assertIsNotNone(t["p_two_sided"])
             self.assertIsNotNone(t["diff_pp"])
             self.assertIsNotNone(t["bayes_p_treatment_better"])
@@ -648,7 +669,7 @@ class TestCoverageGaps(unittest.TestCase):
 
     def test_diff_zero_boundary_inconclusive(self):
         self.assertEqual(
-            statsig.determine_verdict(50.0, 0.0, None, 95.0, 80.0), "INCONCLUSIVE"
+            statsig.determine_verdict(50.0, 0.0, 95.0, 80.0), "INCONCLUSIVE"
         )
 
     def test_three_arm_md_header_has_two_columns(self):
