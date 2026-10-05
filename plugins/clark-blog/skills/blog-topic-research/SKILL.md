@@ -48,7 +48,7 @@ python3 scripts/fetch_posts.py --rss <topic_sources의 blogId 전부> --out work
 
 ## 4. 중복 판정 (우리 블로그 기준, 재현 가능)
 
-판정은 아래 스크립트로 계산한다(작업 폴더에 없으면 이 절 끝의 코드를 `scripts/dedupe_check.py`로 저장). 출처 글 하나당
+판정은 `scripts/dedupe_check.py`(표준 라이브러리만, 플러그인 scaffold에 동봉)로 계산한다. 출처 글 하나당
 `python3 scripts/dedupe_check.py "<출처 제목>" "<핵심 키워드>"` — `work/pajuclark-posts.json`의 **전체 행**과 비교해 가장 가까운 우리 글 1건을 출력한다.
 
 1. **토큰화**: 날짜(`YYYY년`·`N월`·`N일`·`(요일)`)를 지우고, 한글·영숫자 외 기호(이모지와 `｜ | [] () ★ ▶ ! ? , ·` 포함 전부)를 공백으로 바꾼 뒤 어절 단위로 자른다. "지게차 운전기능사"는 "지게차운전기능사"로 붙여 통일한다. 어절이 3글자 이상이면 끝의 조사 1글자(`은 는 이 가 을 를 의 에 도 로 과 와`)를 뗀다.
@@ -67,50 +67,7 @@ python3 scripts/fetch_posts.py --rss <topic_sources의 blogId 전부> --out work
 6. ○는 후보 표가 아니라 "제외한 주제와 이유"로 보낸다. **글마다 행 하나**(blogId·logNo·원제·매칭된 우리 글·사유)를 쓰고 "N여 건" 같은 뭉뚱그림을 쓰지 않는다. 제외 건수 합계는 표 행 수와 일치해야 한다.
 7. 출처 제목이 `academy-profile.md` 금칙어(예: "실기 시험장")와 겹치면 그대로 쓰지 않고 접수·준비물 등으로 재구성한 제목안을 쓴다(제외 표에 "금칙어"로 기록).
 
-```python
-#!/usr/bin/env python3
-"""주제 중복 판정(blog-topic-research §4). 사용: dedupe_check.py "<출처 제목>" "<핵심 키워드>" [pajuclark-posts.json] [--notice]"""
-import json, re, sys
-REGIONS = ["서울","경기북부","의정부","양주","동두천","포천","남양주","파주","일산","고양","구리","도봉구","인천","평택","연천","논산","탄현"]
-PROMO = ["개강안내","개강","모집안내","모집","일정안내","안내","정원","마감","접수중","수시","재직자","주말반","주중반","야간반","평일반","소수정예반","완성반"]
-STRIP = ["중장비학원","중장비운전학원","지게차학원","학원"]
-NOTICE = ["개강","모집","일정안내","일정 안내","접수 일정","시험일정","시험 일정"]  # 공지 유형 표지어
-GENERIC = {"지게차","중장비"}  # 핵심 토큰 겹침 계산에서 제외(너무 흔함)
-def tokens(title):
-    title = title.replace("지게차 운전기능사", "지게차운전기능사")
-    t = re.sub(r"\d{4}\s*년|\d{1,2}\s*월|\d{1,2}\s*일|\([월화수목금토일]\)", " ", title)
-    t = re.sub(r"[^0-9A-Za-z가-힣\s]", " ", t)
-    words = t.split()
-    out = set()
-    for w in words:
-        if w in REGIONS or w in PROMO or w in STRIP: continue
-        if len(w) > 2 and w[-1] in "은는이가을를의에도로과와": w = w[:-1]  # 조사 1글자 제거
-        if len(re.findall(r"[가-힣]", w)) >= 2: out.add(w)
-    return out
-def judge(src, keyword, posts, notice=False):
-    S, K = tokens(src), tokens(keyword) - GENERIC
-    if notice:
-        for n in NOTICE:  # 소스 제목에 있는 표지어와 같은 표지어를 가진 우리 글(최신순)
-            if n in src:
-                for p in sorted(posts, key=lambda p: p["date"], reverse=True):
-                    if n in p["title"]:
-                        return (0.0, 0, "○", p["title"], p["date"])  # 공지 유형 중복
-    best = []
-    for p in posts:
-        O = tokens(p["title"]); u = S | O
-        j = len(S & O) / len(u) if u else 0
-        core = len(K & O)
-        lab = "○" if (j >= 0.5 or core >= 2) else ("△" if j >= 0.25 else "×")
-        best.append((j, core, lab, p["title"], p["date"]))
-    best.sort(key=lambda x: ({"○":0,"△":1,"×":2}[x[2]], -x[0], -x[1]))
-    return best[0]
-if __name__ == "__main__":
-    posts = json.load(open(sys.argv[3] if len(sys.argv) > 3 else "work/pajuclark-posts.json", encoding="utf-8"))
-    notice = "--notice" in sys.argv
-    sys.argv = [a for a in sys.argv if a != "--notice"]
-    j, core, lab, t, d = judge(sys.argv[1], sys.argv[2], posts, notice)
-    print(f"{lab}\tjaccard={j:.2f}\tcore={core}\t{t} ({d})")
-```
+(규칙의 정본은 `scripts/dedupe_check.py`다. 위 목록·임계값은 읽는 사람을 위한 사본이며, 어긋나면 스크립트가 맞다. `--help`는 한국어로 나온다.)
 
 ## 5. 검색 의도 6종으로 묶고 리서치 포인트 달기
 
