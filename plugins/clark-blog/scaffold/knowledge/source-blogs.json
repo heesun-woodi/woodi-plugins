@@ -1,0 +1,69 @@
+{
+  "topic_sources": [
+    {
+      "blogId": "clark6591",
+      "name": "클라크지게차 직업훈련 교육학원",
+      "categories": [
+        "지게차 정보센터"
+      ],
+      "note": "정보성 글 월 3~4개, 최우선 소스"
+    },
+    {
+      "blogId": "wati08",
+      "name": "신한글로벌인재교육원",
+      "categories": [
+        "중장비(지게차)"
+      ],
+      "note": "거의 매일 발행, 지게차 카테고리만"
+    },
+    {
+      "blogId": "voliskpe",
+      "name": "한양직업전문학교",
+      "categories": [
+        "지게차"
+      ],
+      "note": "2025-02 이후 정지, 지게차 카테고리만"
+    }
+  ],
+  "style_references": [
+    {
+      "blogId": "sinjin2020",
+      "name": "SJ 신진신진",
+      "note": "지역명 제목 패턴 참고"
+    }
+  ],
+  "own_blog": {
+    "blogId": "pajuclark",
+    "name": "클라크지게차 ▶ 운전면허/판매/렌탈/정비",
+    "categories": {
+      "info": "클라크중장비운전학원",
+      "sales": "클라크지게차판매/렌탈/중고"
+    }
+  },
+  "design_references": [
+    {
+      "blogId": "wati08",
+      "logNo": "224421112396",
+      "url": "m.blog.naver.com/wati08/224421112396",
+      "why": "구성이 보기 좋다. 강조 부분 음영/굵게로 눈에 띔. 글 끝에 자기 블로그 연결 링크 2~3개"
+    },
+    {
+      "blogId": "overcome6",
+      "logNo": "224383847082",
+      "url": "m.blog.naver.com/overcome6/224383847082",
+      "why": "딱딱하지 않고 자연스러운 흐름, 친근한 느낌"
+    },
+    {
+      "blogId": "magician_e",
+      "logNo": "224388732612",
+      "url": "m.blog.naver.com/magician_e/224388732612",
+      "why": "소제목 여러 개로 나눠 읽기 편함. 소제목마다 내용을 이미지 한 장으로 먼저 보여줌. 사진:글 비율 좋음"
+    },
+    {
+      "blogId": "rojisu0820",
+      "logNo": "224384277071",
+      "url": "m.blog.naver.com/rojisu0820/224384277071",
+      "why": "글과 사진 비율 좋음. 중간중간 지게차 작업 사진"
+    }
+  ]
+}

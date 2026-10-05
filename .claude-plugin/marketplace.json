@@ -97,6 +97,15 @@
         "name": "heesun-woodi"
       },
       "source": "./plugins/ecommerce-growth-discovery"
+    },
+    {
+      "name": "clark-blog",
+      "description": "클라크중장비운전학원 네이버 블로그의 정보성 글 작성을 자동화하는 플러그인입니다. 주제 리서치 → 디자인 시스템 기준 초안 → 법령·공공기관 근거 검토 → 네이버 SEO 다듬기 → 이미지 생성 → 네이버 임시저장 순으로 진행하며, 발행은 사람이 직접 합니다. 스킬 7종·에이전트 2종·커맨드 2종을 번들합니다. 필요: uv, Python 3.11+, Playwright Chromium, naver-blog-cli, GEMINI_API_KEY.",
+      "version": "0.1.0",
+      "author": {
+        "name": "heesun-woodi"
+      },
+      "source": "./plugins/clark-blog"
     }
   ]
 }
