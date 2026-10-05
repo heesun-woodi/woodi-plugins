@@ -103,6 +103,7 @@ def fetch_rss(blog_id):
         guid = (item.findtext("guid") or "").strip()
         m = re.search(r"(\d+)(?:\?|$)", guid or link.split("?")[0])
         if not m:
+            print(f"경고: logNo를 찾을 수 없어 건너뜀({blog_id}): {link or guid!r}", file=sys.stderr)
             continue
         log_no = m.group(1)
         pub = item.findtext("pubDate")
@@ -132,6 +133,8 @@ def fetch_all(blog_id, max_pages):
             data = parse_naver_json(text)
         except ValueError:
             die(f"JSON이 아닌 응답(차단·점검 가능성, blogId={blog_id}, page={page}): {text[:80]!r}")
+        if not isinstance(data, dict):
+            die(f"예상하지 못한 응답 형식(blogId={blog_id}, page={page})")
         if data.get("resultCode") != "S":
             die(f"목록 조회 실패(blogId={blog_id}): {data.get('resultMessage') or data.get('resultCode')}")
         batch = data.get("postList") or []
@@ -140,19 +143,24 @@ def fetch_all(blog_id, max_pages):
                 total = int(data.get("totalCount"))
             except (TypeError, ValueError):
                 total = None
+        if not isinstance(batch, list):
+            die(f"예상하지 못한 postList 형식(blogId={blog_id}, page={page})")
         for p in batch:
-            log_no = str(p.get("logNo", ""))
-            if not log_no or log_no in seen:
-                continue
-            seen.add(log_no)
-            posts.append({
-                "blogId": blog_id,
-                "title": decode_title(p.get("title")),
-                "category": decode_title(p.get("categoryName", "")),
-                "date": parse_add_date(p.get("addDate")),
-                "logNo": log_no,
-                "link": make_link(blog_id, log_no),
-            })
+            try:
+                log_no = str(p.get("logNo", ""))
+                if not log_no or log_no in seen:
+                    continue
+                seen.add(log_no)
+                posts.append({
+                    "blogId": blog_id,
+                    "title": decode_title(p.get("title")),
+                    "category": decode_title(p.get("categoryName", "")),
+                    "date": parse_add_date(p.get("addDate")),
+                    "logNo": log_no,
+                    "link": make_link(blog_id, log_no),
+                })
+            except (ValueError, AttributeError) as e:
+                die(f"글 항목 해석 실패(blogId={blog_id}, page={page}): {e}")
         if len(batch) < PAGE_SIZE or (total is not None and len(posts) >= total):
             break
     return posts

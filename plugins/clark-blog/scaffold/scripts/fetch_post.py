@@ -8,9 +8,18 @@
 
 `PostView.naver`의 스마트에디터ONE 본문(`se-main-container`)만 파싱한다.
 변환은 완벽하지 않다. 통계(글자수·소제목·이미지·굵게·인용·링크)가 맞는 것이 우선이다.
-통계의 images는 본문 사진(se-image-resource)만 센다. 링크 카드 썸네일·지도는 oglinks/links에 잡힌다.
-소제목은 큰 글씨(se-fs-fs24, se-fs-fs19)·se-section-sectionTitle 문단이며,
-기본 크기에 가까운 se-fs-fs15는 문단 전체가 굵을 때만 소제목으로 본다.
+통계 키 정의(출력 stats = 계약 11개 키 + bold_lines + oglinks):
+  blogId, logNo, title  입력값과 og:title/<title>(" : 네이버 블로그" 제거)
+  chars              공백 제외 글자수(문단·소제목·인용·목록·표 셀 텍스트; 캡션·링크카드 제목 제외)
+  paragraphs         비어 있지 않은 일반 문단 + 목록 항목 수(소제목·인용 제외, 굵은 줄 포함)
+  headings           se-fs-fs24 / se-fs-fs19 글씨가 문단의 80% 이상이거나 se-section-sectionTitle인 문단 수
+  images             본문 사진(se-image-resource) 수. 링크카드 썸네일·지도는 제외
+  bold_runs          굵게(<b>·<strong>·font-weight:bold) 이웃 조각을 합친 덩어리 수
+  bold_lines         소제목이 아닌 문단 중 전체가 굵은 줄 수(목록 항목 제외). paragraphs·bold_runs에도 포함됨
+  quotes             인용 블록(se-section-quotation/se-quote) 수
+  links_out          본문 링크(문단 안 링크 + 링크카드) 중 blog.naver.com 이외 도메인 수
+  links_naver_blog   본문 링크 중 blog.naver.com / m.blog.naver.com 수
+  oglinks            링크카드(se-oglink) 수. links_out/links_naver_blog에도 포함됨
 """
 import argparse
 import json
@@ -73,7 +82,7 @@ class PostParser(HTMLParser):
         self.og_href = None
         self.og_title_buf = None
         self.stats = {"paragraphs": 0, "headings": 0, "images": 0, "bold_runs": 0,
-                      "quotes": 0, "links_out": 0, "links_naver_blog": 0, "oglinks": 0}
+                      "quotes": 0, "bold_lines": 0, "links_out": 0, "links_naver_blog": 0, "oglinks": 0}
         self.chars = 0
 
     # --- 보조 ---
@@ -150,7 +159,7 @@ class PostParser(HTMLParser):
             self._mark("caption")
         if tag in FORMAT_TAGS:
             bold = tag in ("b", "strong") or bool(BOLD_STYLE.search(a.get("style") or ""))
-            hclass = next((c for c in cls.split() if c in HEADING_STRONG or c == "se-fs-fs15"), None)
+            hclass = next((c for c in cls.split() if c in HEADING_STRONG), None)
             href = a.get("href") if tag == "a" and (a.get("href") or "").startswith("http") else None
             self.fmt.append((tag, bold, hclass, href))
             if href and self.para is not None and not self._in("table"):
@@ -204,6 +213,7 @@ class PostParser(HTMLParser):
                 self._flush_table()
             if kind == "caption":
                 self.in_caption = False
+                self.cur_image = None
         self.depth -= 1
         if self.depth < self.main_depth:
             self.in_main = False
@@ -242,13 +252,11 @@ class PostParser(HTMLParser):
         in_quote = self._in("quote")
         one_line = re.sub(r"\s+", " ", plain).strip()
         # 소제목 판정
-        heading_chars = sum(len(re.sub(r"\s", "", clean(s[0]))) for s in segs if s[3])
         strong = sum(len(re.sub(r"\s", "", clean(s[0]))) for s in segs if s[3] in HEADING_STRONG)
         all_bold = all(s[1] for s in segs if clean(s[0]).strip())
         is_heading = self._in("sectiontitle") or (
-            not in_quote and not self._in("li") and (
-                (strong and strong >= 0.8 * len(compact))
-                or (heading_chars >= 0.8 * len(compact) and all_bold)))
+            not in_quote and not self._in("li")
+            and strong and strong >= 0.8 * len(compact))
         if is_heading:
             self.stats["headings"] += 1
             self.blocks.append(("h", f"## {one_line}"))
@@ -258,6 +266,8 @@ class PostParser(HTMLParser):
             self.blocks.append(("quote", "\n".join("> " + ln for ln in md.split("\n") if ln.strip())))
             return
         self.stats["paragraphs"] += 1
+        if all_bold and not self._in("li"):
+            self.stats["bold_lines"] += 1
         if self._in("li"):
             self.blocks.append(("li", "- " + re.sub(r"\s*\n\s*", " ", md)))
         else:
@@ -333,7 +343,9 @@ def parse_post(html):
 
 def main():
     ap = argparse.ArgumentParser(
-        description="네이버 블로그 글(PostView) 한 편을 마크다운 본문 + 구조 통계로 변환한다.")
+        description="네이버 블로그 글(PostView) 한 편을 마크다운 본문 + 구조 통계로 변환한다.",
+        epilog=__doc__[__doc__.index("통계 키 정의"):],
+        formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("blogId", help="블로그 아이디 (예: wati08)")
     ap.add_argument("logNo", help="글 번호 (예: 224421112396)")
     ap.add_argument("--out", metavar="FILE", help="결과를 파일로 저장(기본: stdout)")
@@ -356,6 +368,7 @@ def main():
         "headings": s["headings"],
         "images": s["images"],
         "bold_runs": s["bold_runs"],
+        "bold_lines": s["bold_lines"],
         "quotes": s["quotes"],
         "links_out": s["links_out"],
         "links_naver_blog": s["links_naver_blog"],
