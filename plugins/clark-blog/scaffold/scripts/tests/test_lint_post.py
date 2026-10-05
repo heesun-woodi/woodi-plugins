@@ -228,7 +228,7 @@ class LintPostTest(unittest.TestCase):
 
     def test_seo_stats(self):
         res = self.run_lint(self.good)
-        self.assertEqual(res["stats"]["keyword_hits"], 6)
+        self.assertEqual(res["stats"]["keyword_hits"], 4)
         self.assertEqual(res["stats"]["title_len"], len("지게차운전기능사 실기 순서, 처음이라면 이렇게 준비하세요"))
 
     def test_seo_keyword_body_fail_low(self):
@@ -236,12 +236,23 @@ class LintPostTest(unittest.TestCase):
         self.assertEqual(self.failed(res), ["seo_keyword_body"])
 
     def test_seo_keyword_body_fail_high(self):
-        res = self.run_lint(self.good + "\n" + "지게차운전기능사 합격\n" * 4)
+        res = self.run_lint(self.good + "\n" + "지게차운전기능사 합격\n\n" * 6)
         self.assertEqual(self.failed(res), ["seo_keyword_body"])
 
     def test_seo_keyword_body_ignores_urls_images_code(self):
         extra = ("\n<!-- 제목 B안: 지게차운전기능사 -->\n[링크](https://example.com/지게차운전기능사/지게차운전기능사)\n```\n지게차운전기능사\n```\n")
-        self.assertEqual(self.run_lint(self.good + extra)["stats"]["keyword_hits"], 6)
+        self.assertEqual(self.run_lint(self.good + extra)["stats"]["keyword_hits"], 4)
+
+    def test_seo_keyword_excludes_headings_quotes_inline_code(self):
+        # 키워드가 h1/h2에만 + 본문 문단 2회 -> hits=2 (FAIL)
+        t = self.good.replace("**핵심** 지게차 운전기능사 ", "**핵심** ")
+        t = t.replace("**핵심** ", "**핵심** 지게차 운전기능사 ", 2)
+        res = self.run_lint(t)
+        self.assertEqual(res["stats"]["keyword_hits"], 2)
+        self.assertEqual(self.failed(res), ["seo_keyword_body"])
+        # 인용 줄·인라인 코드 안 키워드는 세지 않는다
+        extra = "\n> 지게차 운전기능사 요약\n\n`지게차운전기능사` 코드\n"
+        self.assertEqual(self.run_lint(self.good + extra)["stats"]["keyword_hits"], 4)
 
     def test_seo_keyword_h2_fail(self):
         res = self.run_lint(self.good.replace("## 지게차 운전기능사 소제목 1", "## 소제목 1"))

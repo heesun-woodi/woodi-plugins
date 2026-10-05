@@ -2,7 +2,7 @@
 """블로그 글 마크다운 결정적 검사기 (LLM 판단 없이 센다). 표준 라이브러리만 사용.
 
 final 단계에는 네이버 SEO 정량 검사 4종이 추가된다(draft는 SKIP):
-seo_keyword_body(본문 keyword 출현 kw_min_body~kw_max_body, 기본 3~8),
+seo_keyword_body(본문 문단만(제목·소제목·코드·인용·주석·이미지·URL 제외) keyword 출현 kw_min_body~kw_max_body, 기본 3~8),
 seo_keyword_h2(keyword 포함 소제목 >=1), seo_image_captions(모든 이미지 alt 비어 있지 않음),
 seo_title_length(title 글자수 title_min~title_max, 기본 20~40). 임계값은 design-system.md의 lint 블록 키로 조정한다.
 """
@@ -26,6 +26,8 @@ PLACEHOLDER_RE = re.compile(r"\[출처 필요\]|\(출처 필요\)")
 BOLD_RE = re.compile(r"\*\*[^*\n]+\*\*")
 NAVER_RE = re.compile(r"https://blog\.naver\.com/")
 HTMLC_RE = re.compile(r"<!--.*?-->", re.S)
+INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+NONPROSE_RE = re.compile(r"^\s*(#{1,6}\s|>)")
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
 
 
@@ -163,11 +165,12 @@ def lint_text(text, stage, th, forbidden):
     final = stage == "final"
     kw_s = (fm or {}).get("keyword")
     kw_n = re.sub(r"\s+", "", kw_s) if isinstance(kw_s, str) else ""
-    # 본문(frontmatter·코드펜스·HTML 주석·이미지 문법·URL 제외)에서 줄 단위로 공백을 지우고 keyword 출현을 센다
+    # 본문 문단만(제목·소제목·코드·인용·주석·이미지·URL 제외) 줄 단위로 공백을 지우고 keyword 출현을 센다
     keyword_hits = None
     if kw_n:
-        keyword_hits = sum(re.sub(r"\s+", "", ln).count(kw_n)
-                           for ln in URL_RE.sub("", IMG_RE.sub("", HTMLC_RE.sub("", prose))).split("\n"))
+        para = URL_RE.sub("", IMG_RE.sub("", HTMLC_RE.sub("", prose)))
+        keyword_hits = sum(re.sub(r"\s+", "", INLINE_CODE_RE.sub("", ln)).count(kw_n)
+                           for ln in para.split("\n") if not NONPROSE_RE.match(ln))
     title_s = (fm or {}).get("title")
     title_len = len(title_s) if isinstance(title_s, str) and title_s else None
 

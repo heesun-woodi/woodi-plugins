@@ -31,7 +31,7 @@ description: Use when the Clark blog post needs Naver SEO polishing — e.g. "SE
    python3 scripts/lint_post.py work/posts/<NNN-slug>/draft-v2.md --stage final --json
    ```
    draft-v2.md에는 슬롯·관련글 자리표시가 남아 있어 `image_paths`·`related_links` 등은 FAIL일 수 있다. **SEO 항목만 본다**: `title_keyword`, `seo_title_length`, `seo_keyword_body`, `seo_keyword_h2`, `seo_image_captions`, `tags_count`, `chars`, `h2_count`, `forbidden`. 이 중 FAIL을 고치고 재실행한다(최대 3회). 나머지 FAIL은 후속 단계 몫이라고 `seo.md`에 적는다.
-8. **셀프 체크표**를 `seo.md`에 쓴다. 체크리스트 필수 항목마다 한 행, 열은 `id | 결과(PASS/수정) | 근거`. lint 항목은 lint 값을 옮기고, "사람" 항목(제목-위치, 사진 원본성, 태그의 키워드·지역 포함, 원본성-출처의 복붙 여부, 원본성-변주, 주제 일관성)은 직접 판단해 근거를 쓴다. 근거 없이 PASS를 쓰지 않는다.
+8. **셀프 체크표**를 `seo.md`에 쓴다. 체크리스트 필수 항목마다 한 행, 열은 `id | 결과(PASS/수정) | 근거`. lint 항목은 lint 값을 옮기고, "사람" 항목(제목-위치, 제목-지역, 사진 원본성, 태그의 키워드·지역 포함, 원본성-출처의 복붙 여부, 원본성-변주, 주제 일관성)은 직접 판단해 근거를 쓴다. 근거 없이 PASS를 쓰지 않는다.
 
 ## seo.md 형식
 
@@ -43,6 +43,7 @@ description: Use when the Clark blog post needs Naver SEO polishing — e.g. "SE
 |---|---|---|
 | 제목-키워드 | PASS | lint title_keyword |
 | 제목-위치 | PASS | 키워드가 제목 앞 1/3(…번째 글자)에 있음 |
+| 제목-지역 | PASS | A·B안 각각 지역 키워드 1개(…) 포함 |
 | …필수 항목 전부… | | |
 
 lint(final) 대상 외 FAIL: image_paths, related_links (draft 단계, 후속 단계에서 해결)
