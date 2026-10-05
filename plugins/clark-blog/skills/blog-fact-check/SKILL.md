@@ -1,6 +1,6 @@
 ---
 name: blog-fact-check
-description: Use when a Clark blog draft's factual claims must be checked against 법령·공공기관 sources — e.g. "팩트체크", "근거 검토", "출처 확인해줘", "이 글 맞아?", "사실 확인", "blog-fact-check", "blog-run C 단계". Extracts every checkable claim (numbers, dates, law names, agencies, absolute statements) from draft.md or draft-v2.md, looks each one up on law.go.kr DRF, q-net (jmCd 7875), work24·hrdkorea or knowledge/academy-profile.md, assigns PASS / FAIL / 출처필요 / 시점확인, and writes factcheck.md. Never edits the draft. Do NOT use for writing or rewriting a post (blog-draft-writer), SEO polishing (blog-naver-seo), images (blog-image-director), or upload (blog-naver-upload).
+description: 클라크 학원 블로그 초안의 사실 주장을 법령·공공기관 출처로 검증할 때 사용 — 예: "팩트체크", "근거 검토", "출처 확인해줘", "이 글 맞아?", "사실 확인", "blog-fact-check", "blog-run C 단계". draft.md 또는 draft-v2.md에서 검증할 주장(숫자·날짜·법령명·기관명·단정문)을 모두 뽑아 law.go.kr DRF, 큐넷(종목코드 7875), 고용24·한국산업인력공단, knowledge/academy-profile.md에서 하나씩 확인하고 PASS / FAIL / 출처필요 / 시점확인을 붙여 factcheck.md를 쓴다. 초안은 고치지 않는다. Do NOT use — 글 작성·수정(blog-draft-writer), SEO 다듬기(blog-naver-seo), 이미지(blog-image-director), 업로드(blog-naver-upload).
 ---
 
 # 근거 검토 (팩트체크)
@@ -47,7 +47,7 @@ ls work/posts/<NNN-slug>/
 - 제외: 감상·의견("처음엔 다들 긴장합니다")과 일반 상식 수준의 조작 요령. 애매하면 넣는다.
 - 주장 유형(하나만 고른다): `시험일정` / `접수` / `수수료` / `응시자격` / `면허종류·톤수` / `갱신·안전교육` / `국비·내일배움카드` / `법령조항` / `학원정보` / `기타수치`.
 - 한 문장에 주장이 둘 이상이면 C3a·C3b처럼 나눈다. 초안 문장은 **원문 그대로** 옮긴다(맞춤법도 고치지 않는다).
-- `research.md`가 있으면 거기 적힌 출처 URL을 먼저 다시 열어 확인한다 — writer가 적은 출처도 검증 대상이다. 링크가 죽었거나 내용이 다르면 그 출처에 기댄 주장은 근거 없음으로 본다.
+- `research.md`가 있으면 거기 적힌 출처 URL을 먼저 다시 열어 확인한다 — writer가 적은 출처도 검증 대상이다. 링크가 죽었으면 1차 조회처에서 다시 찾고, 재조회해도 못 찾으면 출처필요, 출처 내용이 초안과 다르면 FAIL로 판정한다.
 
 ## 2. 유형별 조회
 
@@ -58,7 +58,7 @@ ls work/posts/<NNN-slug>/
 | 법령조항·응시자격·면허종류·톤수·갱신·안전교육 | law.go.kr DRF: `lawSearch.do`로 현행 MST 확인 → `lawService.do?MST=…`(XML)에서 해당 조문·별표 인용 |
 | 수수료·합격률·출제기준 | 큐넷 종목 7875 탭 조각: `crf00503s02`(일정·수수료), `crf00503s01`(검정현황) |
 | 시험일정·접수 | 큐넷 월간 일정 `crf021.do?id=crf02103…` (종목 탭은 정기 일정이 비어 있음 → 단정 금지) |
-| 국비·내일배움카드 | 고용24·한국산업인력공단 — 제도 상세가 curl로 안 보이면 시점확인 + "이랑 확인" |
+| 국비·내일배움카드 | 고용24·한국산업인력공단 — 제도 언급은 시점확인 + "이랑 확인", 금액·비율 단정은 출처필요 |
 | 학원정보 | `knowledge/academy-profile.md` 대조 |
 | 기관 공지 | 해당 기관 사이트(`law-sources.md` 접근성 기록의 우회 URL 사용) |
 
@@ -70,6 +70,8 @@ ls work/posts/<NNN-slug>/
 ## 3. 판정
 
 위 "판정 4종" 정의대로 각 주장에 하나씩 준다. 추가 규칙:
+
+- **우선순위**: `references/claim-types.md` 매핑표의 '접근 불가 시 처리'가 위 일반 규칙보다 우선한다(예: 법령은 DRF가 차단돼도 시점확인이 아니라 출처필요). 매핑표는 경우마다 판정이 하나뿐이니 그대로 따른다.
 
 - 학원정보: `academy-profile.md`와 일치하면 PASS(근거 = 해당 행 인용 + `knowledge/academy-profile.md`). 다르면 FAIL. 프로필에 없는 학원 주장(장비 대수·합격률·수상 등)은 출처필요.
 - 학원이 시험 장소라는 사실·암시(금칙어 목록 포함)는 사실 여부와 무관하게 **FAIL**(계약 조항) — 수정 제안은 해당 문장 삭제 또는 "실기 위주 교육"류 표현으로 교체.
@@ -95,7 +97,7 @@ ls work/posts/<NNN-slug>/
 |---|---|---|---|---|---|
 | C1 | 면허종류·톤수 | … | PASS | "3. 3톤 미만의 지게차" — 건설기계관리법 시행규칙 제73조제2항(시행 2026-03-24) https://www.law.go.kr/DRF/lawService.do?OC=test&target=law&MST=285023&type=XML | — |
 | C2 | 수수료 | … | 시점확인 | "필기 실기 14,500원 25,200원" — https://www.q-net.or.kr/crf005.do?id=crf00503s02&gSite=Q&gId=&jmCd=7875 (2026-10-06 조회) | 문장 끝에 "(2026년 10월 큐넷 기준)" 추가 |
-| … (C3~C9 생략 — 실제 리포트는 모든 행을 적는다) | | | | | |
+<!-- C3~C9 생략 — 실제 리포트는 모든 행을 적는다 -->
 
 요약: PASS 5 | FAIL 1 | 출처필요 1 | 시점확인 2
 
@@ -113,7 +115,7 @@ ls work/posts/<NNN-slug>/
 - **요약 줄은 정확히 이 형식 한 줄**: `요약: PASS <n> | FAIL <n> | 출처필요 <n> | 시점확인 <n>` (blog-run이 이 줄을 읽어 FAIL+출처필요 합계로 B' 범위를 정한다). 합계 = 표의 행 수.
 - `## B'에서 반영할 것`: FAIL·출처필요 항목만 id 순서로 번호를 매긴다. 0건이면 제목 아래에 `없음` 한 줄.
 - `## 시점 표기 권고`: 시점확인 항목. 0건이면 `없음`. (B' 생략 판단에는 쓰지 않는다 — writer가 B'에서 SEO 작업 때 함께 반영.)
-- `## 질문`: 메인/이랑이 답해야 진행되는 것만. 없으면 절 자체를 생략.
+- `## 질문`: 메인/이랑이 답해야 진행되는 것. **판정 이유가 '이랑 확인'인 시점확인 항목은 모두 여기에 id와 함께 적는다**(FAIL+출처필요가 0건이어도 blog-run이 이랑에게 묻게 하려는 것). 해당 항목이 하나도 없으면 절 자체를 생략.
 - 표 칸 안의 `|`는 `\|`로 이스케이프한다. 출처 URL은 전체 주소로 쓴다(단축 금지).
 
 ## 5. 금지
@@ -126,4 +128,4 @@ ls work/posts/<NNN-slug>/
 
 - `요약:` 줄의 FAIL + 출처필요 = 0 → B'의 팩트 반영 생략 가능: 메인이 `draft.md`를 `draft-v2.md`로 복사하고 B'는 SEO·관련글 링크 치환(+시점 표기 권고)만 수행.
 - FAIL + 출처필요 ≥ 1 → B'에서 `## B'에서 반영할 것`을 전부 반영. 게이트 2 이후 사실 문장이 바뀌면 C를 r2로 재발주한다.
-- `## 질문`이 있으면 메인이 이랑에게 묻고 답을 `gates.md`에 기록한 뒤 진행한다.
+- `## 질문`이 있으면 FAIL+출처필요 건수와 무관하게 메인이 이랑에게 묻고 답을 `gates.md`에 기록한 뒤 진행한다(이랑 확인 항목이 여기로 온다).
