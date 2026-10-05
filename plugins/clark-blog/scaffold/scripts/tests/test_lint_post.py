@@ -212,6 +212,18 @@ class LintPostTest(unittest.TestCase):
             self.assertIn("academy-profile.md", r.stderr)
             self.assertNotIn("design-system.md", r.stderr)
 
+    def test_bracket_prefixed_title(self):
+        res = self.run_lint(self.good.replace("title: 지게차운전기능사 실기 순서", "title: [공지] 지게차운전기능사 실기 순서"))
+        self.assertEqual(self.failed(res), [])
+
+    def test_unclosed_bracket_title_does_not_swallow_keys(self):
+        res = self.run_lint(self.good.replace("title: 지게차운전기능사 실기 순서", "title: [공지 지게차운전기능사 실기 순서"))
+        self.assertEqual(self.failed(res), [])
+        text = self.good.replace("title: 지게차운전기능사 실기 순서", "title: [공지 지게차")
+        fm, _, _ = lint_post.parse_frontmatter(text.split("\n"))
+        self.assertEqual(fm["title"], "[공지 지게차")
+        self.assertEqual(fm["keyword"], "지게차 운전기능사")
+
 
 if __name__ == "__main__":
     unittest.main()

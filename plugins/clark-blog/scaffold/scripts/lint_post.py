@@ -78,12 +78,24 @@ def parse_frontmatter(lines):
         m = re.match(r"^([A-Za-z_][\w-]*)\s*:\s*(.*)$", raw)
         if m and not raw[0].isspace():
             key, val = m.group(1), m.group(2).strip()
+            listval, used = None, 0
             if val.startswith("["):
-                while "]" not in val and i < end:  # 여러 줄 인라인 리스트
-                    val += " " + lines[i].strip()
-                    i += 1
-                inner = val[1:val.rindex("]")] if "]" in val else val[1:]
-                fm[key] = [t.strip().strip("'\"") for t in inner.split(",") if t.strip()]
+                if val.endswith("]"):
+                    listval = val
+                elif "]" not in val:  # 여러 줄 인라인 리스트 후보
+                    joined, j = val, i
+                    while j < end:
+                        nxt = lines[j]
+                        if re.match(r"^[A-Za-z_][\w-]*:\s", nxt):
+                            break
+                        joined += " " + nxt.strip()
+                        j += 1
+                        if nxt.rstrip().endswith("]"):
+                            listval, used = joined, j - i
+                            break
+            if listval is not None:
+                i += used
+                fm[key] = [t.strip().strip("'\"") for t in listval[1:-1].split(",") if t.strip()]
             else:
                 fm[key] = val.strip("'\"") if not val.startswith("{") else val
         elif key is not None:
