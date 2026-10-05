@@ -10,7 +10,7 @@ DEFAULTS = {"min_chars": 1500, "max_chars": 4000, "min_h2": 4, "max_h2": 7,
             "min_images": 3, "min_sources": 2, "tags_min": 5, "tags_max": 10}
 DEFAULT_FORBIDDEN = ["실기시험장", "실기 시험장", "실기시험 장소"]
 REQUIRED_KEYS = ["title", "keyword", "category", "tags", "variation"]
-PAJU = "https://blog.naver.com/pajuclark/"
+PAJU_RE = re.compile(r"https://blog\.naver\.com/pajuclark/[^\s)\]>\"']+")
 
 IMG_RE = re.compile(r"!\[([^\]]*)\]\(([^)]*)\)")
 URL_RE = re.compile(r"https?://\S+")
@@ -62,32 +62,39 @@ def load_forbidden(kdir):
 
 
 def parse_frontmatter(lines):
-    """(frontmatter dict or None, 본문 시작 인덱스). 간단 파서: key: value / 인라인 [a, b] / '- ' 목록."""
+    """(frontmatter dict or None, 본문 시작 인덱스, 오류 or None).
+    간단 파서: key: value / 인라인 [a, b](여러 줄 가능) / '- ' 목록."""
     if not lines or lines[0].strip() != "---":
-        return None, 0
+        return None, 0, "첫 줄이 --- 가 아님"
     end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
     if end is None:
-        return None, 0
-    fm, key = {}, None
-    for raw in lines[1:end]:
+        return None, 0, "닫는 --- 없음"
+    fm, key, i = {}, None, 1
+    while i < end:
+        raw = lines[i]
+        i += 1
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
         m = re.match(r"^([A-Za-z_][\w-]*)\s*:\s*(.*)$", raw)
         if m and not raw[0].isspace():
             key, val = m.group(1), m.group(2).strip()
-            if val.startswith("[") and val.endswith("]"):
-                fm[key] = [t.strip().strip("'\"") for t in val[1:-1].split(",") if t.strip()]
+            if val.startswith("["):
+                while "]" not in val and i < end:  # 여러 줄 인라인 리스트
+                    val += " " + lines[i].strip()
+                    i += 1
+                inner = val[1:val.rindex("]")] if "]" in val else val[1:]
+                fm[key] = [t.strip().strip("'\"") for t in inner.split(",") if t.strip()]
             else:
                 fm[key] = val.strip("'\"") if not val.startswith("{") else val
         elif key is not None:
-            s = raw.strip()
-            if s.startswith("- "):
+            s2 = raw.strip()
+            if s2.startswith("- "):
                 if not isinstance(fm[key], list):
                     fm[key] = []
-                fm[key].append(s[2:].strip().strip("'\""))
+                fm[key].append(s2[2:].strip().strip("'\""))
             elif fm[key] == "":
-                fm[key] = s  # 들여쓴 하위 값(map 등) -> 존재로 취급
-    return fm, end + 1
+                fm[key] = s2  # 들여쓴 하위 값(map 등) -> 존재로 취급
+    return fm, end + 1, None
 
 
 def has_value(v):
@@ -99,8 +106,8 @@ def check(cid, value, rule, result, detail=""):
 
 
 def lint_text(text, stage, th, forbidden):
-    lines = text.split("\n")
-    fm, body_start = parse_frontmatter(lines)
+    lines = text.lstrip("\ufeff").split("\n")
+    fm, body_start, fm_err = parse_frontmatter(lines)
     # 본문 줄 분류 (코드펜스 밖만)
     body, in_fence = [], False
     for i in range(body_start, len(lines)):
@@ -128,8 +135,10 @@ def lint_text(text, stage, th, forbidden):
     images = IMG_RE.findall(prose)
     sources = len(SRC_RE.findall(prose))
     placeholders = len(PLACEHOLDER_RE.findall(prose))
-    paju = prose.count(PAJU)
+    paju = len(set(PAJU_RE.findall(prose)))
     tags = fm.get("tags") if fm else None
+    if isinstance(tags, str) and tags and not tags.startswith("{"):
+        tags = [t.strip().strip("'\"") for t in tags.split(",") if t.strip()]
     tag_n = len(tags) if isinstance(tags, list) else 0
     final = stage == "final"
 
@@ -166,17 +175,21 @@ def lint_text(text, stage, th, forbidden):
         missing = REQUIRED_KEYS if fm is None else [k for k in REQUIRED_KEYS if not has_value(fm.get(k))]
         c.append(check("frontmatter", "누락: " + ", ".join(missing) if missing else "완전",
                        "첫 줄 ---, 키 " + "·".join(REQUIRED_KEYS), "FAIL" if missing else "PASS",
-                       "frontmatter 없음(첫 줄이 --- 가 아님)" if fm is None else ""))
+                       (fm_err or "") if fm is None else ""))
         title, kw = (fm or {}).get("title"), (fm or {}).get("keyword")
-        if isinstance(title, str) and isinstance(kw, str) and title and kw:
+        if not has_value(title) or not has_value(kw):
+            c.append(skip("title_keyword", "title/keyword 없음(frontmatter 항목에서 보고)"))
+        elif isinstance(title, str) and isinstance(kw, str):
             ok = re.sub(r"\s+", "", kw) in re.sub(r"\s+", "", title)
             c.append(check("title_keyword", "포함" if ok else "미포함", "keyword ⊂ title", "PASS" if ok else "FAIL"))
         else:
-            c.append(skip("title_keyword", "title/keyword 없음(frontmatter 항목에서 보고)"))
-        if isinstance(tags, list):
+            c.append(check("title_keyword", "문자열 아님", "title·keyword는 문자열", "FAIL", "title 또는 keyword가 단순 문자열이 아님"))
+        if not has_value(fm.get("tags") if fm else None):
+            c.append(skip("tags_count", "tags 없음(frontmatter 항목에서 보고)"))
+        elif isinstance(tags, list):
             c.append(rng("tags_count", tag_n, th["tags_min"], th["tags_max"]))
         else:
-            c.append(skip("tags_count", "tags 없음(frontmatter 항목에서 보고)"))
+            c.append(check("tags_count", "형식 오류", "리스트", "FAIL", "리스트 형식 아님"))
         slots = prose.count("[[")
         c.append(check("related_links", f"[[ {slots}건, 관련글 {paju}개", f"[[ 0건, pajuclark 링크 >=2",
                        "PASS" if slots == 0 and paju >= 2 else "FAIL"))
@@ -243,9 +256,17 @@ def main(argv=None):
     if a.knowledge and not os.path.isdir(a.knowledge):
         print(f"오류: knowledge 폴더가 없습니다: {a.knowledge}", file=sys.stderr)
         return 2
-    res, kdir = lint_file(a.post, a.stage, a.knowledge)
+    try:
+        res, kdir = lint_file(a.post, a.stage, a.knowledge)
+    except UnicodeDecodeError:
+        print(f"오류: UTF-8로 읽을 수 없는 파일입니다: {a.post}", file=sys.stderr)
+        return 2
     if kdir is None:
         print("경고: knowledge/ 폴더를 찾지 못해 기본 임계값·금칙어를 사용합니다.", file=sys.stderr)
+    else:
+        for name in ("design-system.md", "academy-profile.md"):
+            if not os.path.isfile(os.path.join(kdir, name)):
+                print(f"경고: {kdir}에 {name}이 없어 해당 기본값을 사용합니다.", file=sys.stderr)
     print(json.dumps(res, ensure_ascii=False, indent=2) if a.json else render_table(res))
     return 0 if res["pass"] else 1
 
