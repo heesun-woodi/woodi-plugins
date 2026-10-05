@@ -33,14 +33,15 @@ class LintPostTest(unittest.TestCase):
         for s in range(4):
             sents = " ".join(f"지게차 실습은 순서를 익히면 차분하게 해낼 수 있습니다 {s}-{i}." for i in range(14))
             src = f" (출처: https://www.law.go.kr/s{s})" if s < 2 else ""
-            sections.append(f"## 소제목 {s + 1}\n\n**핵심** {sents}{src}\n\n> 한 줄 요약\n")
+            h2 = "지게차 운전기능사 소제목 1" if s == 0 else f"소제목 {s + 1}"
+            sections.append(f"## {h2}\n\n**핵심** 지게차 운전기능사 {sents}{src}\n\n> 한 줄 요약\n")
         sections[0] += f"\n![캡션1]({cls.imgs[0]})\n"
         sections[1] += f"\n![캡션2]({cls.imgs[1]})\n"
         sections[2] += f"\n![캡션3]({cls.imgs[2]})\n"
         sections[3] += ("\n[관련글1](https://blog.naver.com/pajuclark/1)\n"
                         "[관련글2](https://blog.naver.com/pajuclark/2)\n")
         cls.body = "# 지게차운전기능사 실기 순서\n\n" + "\n".join(sections)
-        cls.fm = ("---\ntitle: 지게차운전기능사 실기 순서\nkeyword: 지게차 운전기능사\ncategory: 클라크중장비운전학원\n"
+        cls.fm = ("---\ntitle: 지게차운전기능사 실기 순서, 처음이라면 이렇게 준비하세요\nkeyword: 지게차 운전기능사\ncategory: 클라크중장비운전학원\n"
                   "tags: [지게차운전기능사, 지게차실기, 의정부지게차학원, 양주지게차학원, 국비지원]\n"
                   "variation: {structure: 절차형, intro: 상황}\n---\n")
         cls.good = cls.fm + cls.body
@@ -110,7 +111,8 @@ class LintPostTest(unittest.TestCase):
         self.assertEqual(self.failed(res), [], res)
         by = {c["id"]: c["result"] for c in res["checks"]}
         self.assertEqual(by["variation"], "SKIP")
-        for cid in ("frontmatter", "title_keyword", "tags_count", "related_links", "image_paths", "h1_once"):
+        for cid in ("frontmatter", "title_keyword", "tags_count", "related_links", "image_paths", "h1_once",
+                    "seo_keyword_body", "seo_keyword_h2", "seo_image_captions", "seo_title_length"):
             self.assertEqual(by[cid], "SKIP")
 
     def test_defaults_without_knowledge(self):
@@ -213,16 +215,60 @@ class LintPostTest(unittest.TestCase):
             self.assertNotIn("design-system.md", r.stderr)
 
     def test_bracket_prefixed_title(self):
-        res = self.run_lint(self.good.replace("title: 지게차운전기능사 실기 순서", "title: [공지] 지게차운전기능사 실기 순서"))
+        res = self.run_lint(self.good.replace("title: 지게차운전기능사 실기 순서, 처음이라면 이렇게 준비하세요", "title: [공지] 지게차운전기능사 실기 순서, 처음이라면 이렇게"))
         self.assertEqual(self.failed(res), [])
 
     def test_unclosed_bracket_title_does_not_swallow_keys(self):
-        res = self.run_lint(self.good.replace("title: 지게차운전기능사 실기 순서", "title: [공지 지게차운전기능사 실기 순서"))
+        res = self.run_lint(self.good.replace("title: 지게차운전기능사 실기 순서, 처음이라면 이렇게 준비하세요", "title: [공지 지게차운전기능사 실기 순서, 처음이라면 이렇게 준비"))
         self.assertEqual(self.failed(res), [])
-        text = self.good.replace("title: 지게차운전기능사 실기 순서", "title: [공지 지게차")
+        text = self.good.replace("title: 지게차운전기능사 실기 순서, 처음이라면 이렇게 준비하세요", "title: [공지 지게차")
         fm, _, _ = lint_post.parse_frontmatter(text.split("\n"))
         self.assertEqual(fm["title"], "[공지 지게차")
         self.assertEqual(fm["keyword"], "지게차 운전기능사")
+
+    def test_seo_stats(self):
+        res = self.run_lint(self.good)
+        self.assertEqual(res["stats"]["keyword_hits"], 6)
+        self.assertEqual(res["stats"]["title_len"], len("지게차운전기능사 실기 순서, 처음이라면 이렇게 준비하세요"))
+
+    def test_seo_keyword_body_fail_low(self):
+        res = self.run_lint(self.good.replace("**핵심** 지게차 운전기능사 ", "**핵심** "))
+        self.assertEqual(self.failed(res), ["seo_keyword_body"])
+
+    def test_seo_keyword_body_fail_high(self):
+        res = self.run_lint(self.good + "\n" + "지게차운전기능사 합격\n" * 4)
+        self.assertEqual(self.failed(res), ["seo_keyword_body"])
+
+    def test_seo_keyword_body_ignores_urls_images_code(self):
+        extra = ("\n<!-- 제목 B안: 지게차운전기능사 -->\n[링크](https://example.com/지게차운전기능사/지게차운전기능사)\n```\n지게차운전기능사\n```\n")
+        self.assertEqual(self.run_lint(self.good + extra)["stats"]["keyword_hits"], 6)
+
+    def test_seo_keyword_h2_fail(self):
+        res = self.run_lint(self.good.replace("## 지게차 운전기능사 소제목 1", "## 소제목 1"))
+        self.assertEqual(self.failed(res), ["seo_keyword_h2"])
+
+    def test_seo_image_captions_fail(self):
+        self.assertEqual(self.failed(self.run_lint(self.good.replace("![캡션1]", "![]"))), ["seo_image_captions"])
+        self.assertEqual(self.failed(self.run_lint(self.good.replace("![캡션1]", "![  ]"))), ["seo_image_captions"])
+
+    def test_seo_title_length_fail(self):
+        short = self.good.replace("title: 지게차운전기능사 실기 순서, 처음이라면 이렇게 준비하세요", "title: 지게차운전기능사 실기 순서")
+        self.assertEqual(self.failed(self.run_lint(short)), ["seo_title_length"])
+        long_t = self.good.replace("처음이라면 이렇게 준비하세요", "처음이라면 이렇게 준비하세요 " * 3)
+        self.assertEqual(self.failed(self.run_lint(long_t)), ["seo_title_length"])
+
+    def test_seo_thresholds_from_lint_block(self):
+        th = dict(lint_post.DEFAULTS)
+        self.assertEqual((th["kw_min_body"], th["kw_max_body"], th["title_min"], th["title_max"]), (3, 8, 20, 40))
+        with tempfile.TemporaryDirectory() as d:
+            kd = os.path.join(d, "knowledge")
+            os.makedirs(kd)
+            with open(os.path.join(kd, "design-system.md"), "w", encoding="utf-8") as f:
+                f.write(DESIGN.replace("-->", "kw_min_body=1 kw_max_body=2 title_min=10 title_max=15 -->"))
+            th = lint_post.load_thresholds(kd)
+            self.assertEqual((th["kw_min_body"], th["kw_max_body"], th["title_min"], th["title_max"]), (1, 2, 10, 15))
+            res = lint_post.lint_text(self.good, "final", th, [])
+            self.assertEqual(self.failed(res), ["seo_keyword_body", "seo_title_length"])
 
 
 if __name__ == "__main__":

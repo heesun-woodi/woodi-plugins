@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""블로그 글 마크다운 결정적 검사기 (LLM 판단 없이 센다). 표준 라이브러리만 사용."""
+"""블로그 글 마크다운 결정적 검사기 (LLM 판단 없이 센다). 표준 라이브러리만 사용.
+
+final 단계에는 네이버 SEO 정량 검사 4종이 추가된다(draft는 SKIP):
+seo_keyword_body(본문 keyword 출현 kw_min_body~kw_max_body, 기본 3~8),
+seo_keyword_h2(keyword 포함 소제목 >=1), seo_image_captions(모든 이미지 alt 비어 있지 않음),
+seo_title_length(title 글자수 title_min~title_max, 기본 20~40). 임계값은 design-system.md의 lint 블록 키로 조정한다.
+"""
 import argparse
 import json
 import os
@@ -7,7 +13,8 @@ import re
 import sys
 
 DEFAULTS = {"min_chars": 1500, "max_chars": 4000, "min_h2": 4, "max_h2": 7,
-            "min_images": 3, "min_sources": 2, "tags_min": 5, "tags_max": 10}
+            "min_images": 3, "min_sources": 2, "tags_min": 5, "tags_max": 10,
+            "kw_min_body": 3, "kw_max_body": 8, "title_min": 20, "title_max": 40}
 DEFAULT_FORBIDDEN = ["실기시험장", "실기 시험장", "실기시험 장소"]
 REQUIRED_KEYS = ["title", "keyword", "category", "tags", "variation"]
 PAJU_RE = re.compile(r"https://blog\.naver\.com/pajuclark/[^\s)\]>\"']+")
@@ -18,6 +25,7 @@ SRC_RE = re.compile(r"출처\s*:\s*https?://|\[출처\]\(\s*https?://")
 PLACEHOLDER_RE = re.compile(r"\[출처 필요\]|\(출처 필요\)")
 BOLD_RE = re.compile(r"\*\*[^*\n]+\*\*")
 NAVER_RE = re.compile(r"https://blog\.naver\.com/")
+HTMLC_RE = re.compile(r"<!--.*?-->", re.S)
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
 
 
@@ -153,12 +161,21 @@ def lint_text(text, stage, th, forbidden):
         tags = [t.strip().strip("'\"") for t in tags.split(",") if t.strip()]
     tag_n = len(tags) if isinstance(tags, list) else 0
     final = stage == "final"
+    kw_s = (fm or {}).get("keyword")
+    kw_n = re.sub(r"\s+", "", kw_s) if isinstance(kw_s, str) else ""
+    # 본문(frontmatter·코드펜스·HTML 주석·이미지 문법·URL 제외)에서 줄 단위로 공백을 지우고 keyword 출현을 센다
+    keyword_hits = None
+    if kw_n:
+        keyword_hits = sum(re.sub(r"\s+", "", ln).count(kw_n)
+                           for ln in URL_RE.sub("", IMG_RE.sub("", HTMLC_RE.sub("", prose))).split("\n"))
+    title_s = (fm or {}).get("title")
+    title_len = len(title_s) if isinstance(title_s, str) and title_s else None
 
     stats = {"chars": chars, "h2_count": h2, "images": len(images), "sources": sources,
              "tags": tag_n, "bold_runs": len(BOLD_RE.findall(prose)),
              "quotes": sum(1 for ln in body if ln.startswith("> ")),
              "links_naver_blog": len(NAVER_RE.findall(prose)), "links_pajuclark": paju,
-             "forbidden_hits": len(hits)}
+             "forbidden_hits": len(hits), "keyword_hits": keyword_hits, "title_len": title_len}
 
     def rng(cid, v, lo, hi):
         return check(cid, v, f"{lo}~{hi}", "PASS" if lo <= v <= hi else "FAIL")
@@ -182,7 +199,9 @@ def lint_text(text, stage, th, forbidden):
         c.append(check("variation", "있음" if var_ok else "없음", "draft는 선택", "PASS" if var_ok else "SKIP"))
 
     if not final:
-        c += [skip(i) for i in ("frontmatter", "title_keyword", "tags_count", "related_links", "image_paths", "h1_once")]
+        c += [skip(i) for i in ("frontmatter", "title_keyword", "tags_count", "related_links", "image_paths", "h1_once",
+                                                     "seo_keyword_body", "seo_keyword_h2", "seo_image_captions",
+                                                     "seo_title_length")]
     else:
         missing = REQUIRED_KEYS if fm is None else [k for k in REQUIRED_KEYS if not has_value(fm.get(k))]
         c.append(check("frontmatter", "누락: " + ", ".join(missing) if missing else "완전",
@@ -219,6 +238,23 @@ def lint_text(text, stage, th, forbidden):
         c.append(check("image_paths", len(bad), "빈/상대/없는 경로 0건", "FAIL" if bad else "PASS",
                        "; ".join(bad + notes)))
         c.append(check("h1_once", h1, "정확히 1개", "PASS" if h1 == 1 else "FAIL"))
+        lo, hi = th["kw_min_body"], th["kw_max_body"]
+        if keyword_hits is None:
+            c.append(skip("seo_keyword_body", "keyword 없음(frontmatter 항목에서 보고)"))
+            c.append(skip("seo_keyword_h2", "keyword 없음(frontmatter 항목에서 보고)"))
+        else:
+            c.append(check("seo_keyword_body", keyword_hits, f"{lo}~{hi}회",
+                           "PASS" if lo <= keyword_hits <= hi else "FAIL",
+                           "" if lo <= keyword_hits <= hi else f"keyword '{kw_s}' 본문 {keyword_hits}회"))
+            h2_kw = sum(1 for ln in body if ln.startswith("## ") and kw_n in re.sub(r"\s+", "", ln))
+            c.append(check("seo_keyword_h2", h2_kw, ">=1", "PASS" if h2_kw >= 1 else "FAIL"))
+        empty = [path.strip() or "(빈 경로)" for cap, path in images if not cap.strip()]
+        c.append(check("seo_image_captions", len(empty), "alt 빈 이미지 0건", "FAIL" if empty else "PASS",
+                       ("alt 없음: " + "; ".join(empty)) if empty else ""))
+        if title_len is None:
+            c.append(skip("seo_title_length", "title 없음/문자열 아님(frontmatter 항목에서 보고)"))
+        else:
+            c.append(rng("seo_title_length", title_len, th["title_min"], th["title_max"]))
     return {"stage": stage, "pass": all(x["result"] != "FAIL" for x in c), "checks": c, "stats": stats}
 
 
@@ -247,14 +283,14 @@ def render_table(res):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(
-        description="블로그 글 마크다운(post.md)의 금칙어·분량·소제목·이미지·출처·frontmatter를 LLM 없이 결정적으로 검사합니다.",
+        description="블로그 글 마크다운(post.md)의 금칙어·분량·소제목·이미지·출처·frontmatter와 네이버 SEO 정량 항목(키워드 본문·소제목 출현, 이미지 캡션, 제목 길이)을 LLM 없이 결정적으로 검사합니다.",
         epilog="종료 코드: 0=PASS, 1=FAIL(하나라도 실패), 2=사용 오류(파일 없음·stage 오류)",
         add_help=False)
     ap._positionals.title, ap._optionals.title = "인자", "옵션"
     ap.add_argument("-h", "--help", action="help", help="도움말을 보여주고 종료")
     ap.add_argument("post", help="검사할 글 마크다운 파일(draft-v2.md 또는 final.md)")
     ap.add_argument("--stage", required=True, choices=["draft", "final"],
-                    help="draft: 초안 검사(frontmatter 계열 SKIP) / final: 업로드 직전 전체 검사")
+                    help="draft: 초안 검사(frontmatter·SEO 계열 SKIP) / final: 업로드 직전 전체 검사(seo_* 4종 포함)")
     ap.add_argument("--knowledge", metavar="DIR",
                     help="knowledge 폴더(기본: post.md에서 위로 올라가며 knowledge/ 탐색)")
     ap.add_argument("--json", action="store_true", help="사람용 표 대신 JSON만 출력")
