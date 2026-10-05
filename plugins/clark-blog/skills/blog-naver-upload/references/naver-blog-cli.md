@@ -29,7 +29,7 @@ uv tool install git+https://github.com/spegas/naver-blog-cli
 
 - 항상 환경변수 `NAVER_BLOG_ID=<블로그아이디>` 필요 (`pajuclark` 등, `blog.naver.com/<여기>`).
 - Playwright Chromium은 `~/Library/Caches/ms-playwright/chromium-1243`이 이미 있어 추가 설치 불필요했다. 다른 머신에서는 `~/.local/share/uv/tools/naver-blog-cli/bin/playwright install chromium`.
-- **로그인 스크립트 `login_setup.py`는 `uv tool install`에 포함되지 않는다.** 저장소 루트에만 있다. 그래서 로그인용으로 저장소를 따로 clone한다 (이 머신: `/Users/joseph/claude-cowork/naver-blog-cli`, 같은 커밋). 이 clone은 로그인 한 번에만 쓰고 플러그인에는 vendoring하지 않는다.
+- **로그인 스크립트 `login_setup.py`는 `uv tool install`에 포함되지 않는다.** 저장소 루트에만 있다. 그래서 로그인용으로 저장소를 따로 clone한다 (예: `~/naver-blog-cli`, 같은 커밋). 이 clone은 로그인 한 번에만 쓰고 플러그인에는 vendoring하지 않는다.
 - 상세 호출 대안(참고): clone에서 `uv sync && uv run playwright install chromium` 후 `uv run --project <clone> naver-blog-cli ...`도 README가 안내하는 정식 방식이다. 이 플러그인은 위의 `uv tool` 방식을 쓴다.
 
 ## 세션 파일과 로그인 (사람이 1회)
@@ -40,7 +40,7 @@ uv tool install git+https://github.com/spegas/naver-blog-cli
   ```bash
   cd <작업폴더>      # playwright-state/ 가 여기에 생긴다
   NAVER_STATE="$PWD/playwright-state/storage_state.json" \
-    ~/.local/share/uv/tools/naver-blog-cli/bin/python /Users/joseph/claude-cowork/naver-blog-cli/login_setup.py
+    ~/.local/share/uv/tools/naver-blog-cli/bin/python ~/naver-blog-cli/login_setup.py
   # 또는 clone 안에서: uv run python login_setup.py
   ```
 
