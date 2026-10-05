@@ -46,16 +46,71 @@ python3 scripts/fetch_posts.py --rss <topic_sources의 blogId 전부> --out work
 각 글을 **자기 블로그의** `categories`에 든 것만 남긴다(예: wati08은 "중장비(지게차)", clark6591은 "지게차 정보센터").
 최근 90일 글을 우선하고, 후보가 8개 미만이면 90일 밖 글까지 넓힌다. 수집 건수 → 필터 후 건수를 표 머리에 적는다.
 
-## 4. 중복 판정 (우리 블로그 기준)
+## 4. 중복 판정 (우리 블로그 기준, 재현 가능)
 
-출처 글 제목과 `work/pajuclark-posts.json`의 제목을 다음 규칙으로 비교한다. LLM 판단이지만 기준은 고정이다.
+판정은 아래 스크립트로 계산한다(작업 폴더에 없으면 이 절 끝의 코드를 `scripts/dedupe_check.py`로 저장). 출처 글 하나당
+`python3 scripts/dedupe_check.py "<출처 제목>" "<핵심 키워드>"` — `work/pajuclark-posts.json`의 **전체 행**과 비교해 가장 가까운 우리 글 1건을 출력한다.
 
-1. **정규화**: 제목에서 날짜·연도·"N월", 지역명(의정부·양주·동두천·포천·서울·경기북부·남양주·파주 등), 괄호 안 지역 나열, 이모지·기호(`｜ [] ★ ▶`), 홍보 꼬리말(개강안내·모집·정원)을 제거하고 명사 핵심어 집합을 만든다.
-2. **○ 중복(제외)**: 자카드 유사도 ≥ 0.5 이거나 핵심 키워드(예: "시험일정", "국비교육 일정", "재직자")가 같다. 일정·개강 공지는 날짜만 바뀌는 반복 글이므로 ○.
-3. **△ 부분 중복(후보로 남기되 각도 변경 명시)**: 유사도 0.25~0.5, 또는 같은 주제지만 우리 글이 1년 이상 지났거나 다른 질문에 답한다. 표에 근거 제목과 "다른 각도"를 적는다.
-4. **× 없음**: 유사한 우리 글이 없다.
-5. ○는 후보 표가 아니라 "제외한 주제와 이유"로 보낸다. 근거로 우리 글 제목을 반드시 인용한다.
-6. 출처 제목의 "실기 시험장 위치" 같은 표현은 `academy-profile.md` 금칙어와 겹치면 그대로 쓰지 않고, 접수·준비물 등으로 재구성한 제목안을 쓴다(제외 표에 "금칙어"로 기록).
+1. **토큰화**: 날짜(`YYYY년`·`N월`·`N일`·`(요일)`)를 지우고, 한글·영숫자 외 기호(이모지와 `｜ | [] () ★ ▶ ! ? , ·` 포함 전부)를 공백으로 바꾼 뒤 어절 단위로 자른다. "지게차 운전기능사"는 "지게차운전기능사"로 붙여 통일한다. 어절이 3글자 이상이면 끝의 조사 1글자(`은 는 이 가 을 를 의 에 도 로 과 와`)를 뗀다.
+2. **제거 목록(고정, "등" 없음)**:
+   - 지역: 서울, 경기북부, 의정부, 양주, 동두천, 포천, 남양주, 파주, 일산, 고양, 구리, 도봉구, 인천, 평택, 연천, 논산, 탄현
+   - 홍보 꼬리말: 개강안내, 개강, 모집안내, 모집, 일정안내, 안내, 정원, 마감, 접수중, 수시, 재직자, 주말반, 주중반, 야간반, 평일반, 소수정예반, 완성반
+   - 학원명: 중장비학원, 중장비운전학원, 지게차학원, 학원
+   - 한글이 2글자 미만인 어절은 버린다.
+3. **핵심 토큰**: 후보의 `핵심 키워드`를 같은 방식으로 토큰화한 집합에서 `지게차`·`중장비`(너무 흔함)를 뺀 것.
+4. **판정**(우리 글 전체 중 ○ → △ → × 순으로 가장 센 것):
+   - **○ 중복(제외)**: 자카드(두 토큰 집합) >= 0.5, **또는** 핵심 토큰 2개 이상이 우리 글 토큰에 그대로 있음. 핵심 토큰이 1개뿐인 키워드는 자카드로만 ○가 된다.
+   - **△ 부분 중복(남기되 각도 변경 명시)**: 자카드 0.25 이상 0.5 미만.
+   - **× 없음**: 자카드 0.25 미만.
+   - **공지 유형 규칙**(`--notice`, 대량 제외용): 출처 제목에 표지어(개강, 모집, 일정안내, 일정 안내, 접수 일정, 시험일정, 시험 일정)가 있고 우리 글 제목에 **같은 표지어**가 있으면 ○. 날짜·반명만 다른 공지 반복이기 때문이다. 정보 질문으로 다시 짠 후보에는 쓰지 않는다.
+5. **스크립트 판정이 정본**이다. 사람이 바꿀 때는 표 비고에 사유를 적는다. 표에는 `○/△/× J=<자카드> core=<일치 수>`와 매칭된 우리 글 제목·날짜를 그대로 옮긴다.
+6. ○는 후보 표가 아니라 "제외한 주제와 이유"로 보낸다. **글마다 행 하나**(blogId·logNo·원제·매칭된 우리 글·사유)를 쓰고 "N여 건" 같은 뭉뚱그림을 쓰지 않는다. 제외 건수 합계는 표 행 수와 일치해야 한다.
+7. 출처 제목이 `academy-profile.md` 금칙어(예: "실기 시험장")와 겹치면 그대로 쓰지 않고 접수·준비물 등으로 재구성한 제목안을 쓴다(제외 표에 "금칙어"로 기록).
+
+```python
+#!/usr/bin/env python3
+"""주제 중복 판정(blog-topic-research §4). 사용: dedupe_check.py "<출처 제목>" "<핵심 키워드>" [pajuclark-posts.json] [--notice]"""
+import json, re, sys
+REGIONS = ["서울","경기북부","의정부","양주","동두천","포천","남양주","파주","일산","고양","구리","도봉구","인천","평택","연천","논산","탄현"]
+PROMO = ["개강안내","개강","모집안내","모집","일정안내","안내","정원","마감","접수중","수시","재직자","주말반","주중반","야간반","평일반","소수정예반","완성반"]
+STRIP = ["중장비학원","중장비운전학원","지게차학원","학원"]
+NOTICE = ["개강","모집","일정안내","일정 안내","접수 일정","시험일정","시험 일정"]  # 공지 유형 표지어
+GENERIC = {"지게차","중장비"}  # 핵심 토큰 겹침 계산에서 제외(너무 흔함)
+def tokens(title):
+    title = title.replace("지게차 운전기능사", "지게차운전기능사")
+    t = re.sub(r"\d{4}\s*년|\d{1,2}\s*월|\d{1,2}\s*일|\([월화수목금토일]\)", " ", title)
+    t = re.sub(r"[^0-9A-Za-z가-힣\s]", " ", t)
+    words = t.split()
+    out = set()
+    for w in words:
+        if w in REGIONS or w in PROMO or w in STRIP: continue
+        if len(w) > 2 and w[-1] in "은는이가을를의에도로과와": w = w[:-1]  # 조사 1글자 제거
+        if len(re.findall(r"[가-힣]", w)) >= 2: out.add(w)
+    return out
+def judge(src, keyword, posts, notice=False):
+    S, K = tokens(src), tokens(keyword) - GENERIC
+    if notice:
+        for n in NOTICE:  # 소스 제목에 있는 표지어와 같은 표지어를 가진 우리 글(최신순)
+            if n in src:
+                for p in sorted(posts, key=lambda p: p["date"], reverse=True):
+                    if n in p["title"]:
+                        return (0.0, 0, "○", p["title"], p["date"])  # 공지 유형 중복
+    best = []
+    for p in posts:
+        O = tokens(p["title"]); u = S | O
+        j = len(S & O) / len(u) if u else 0
+        core = len(K & O)
+        lab = "○" if (j >= 0.5 or core >= 2) else ("△" if j >= 0.25 else "×")
+        best.append((j, core, lab, p["title"], p["date"]))
+    best.sort(key=lambda x: ({"○":0,"△":1,"×":2}[x[2]], -x[0], -x[1]))
+    return best[0]
+if __name__ == "__main__":
+    posts = json.load(open(sys.argv[3] if len(sys.argv) > 3 else "work/pajuclark-posts.json", encoding="utf-8"))
+    notice = "--notice" in sys.argv
+    sys.argv = [a for a in sys.argv if a != "--notice"]
+    j, core, lab, t, d = judge(sys.argv[1], sys.argv[2], posts, notice)
+    print(f"{lab}\tjaccard={j:.2f}\tcore={core}\t{t} ({d})")
+```
 
 ## 5. 검색 의도 6종으로 묶고 리서치 포인트 달기
 
@@ -83,13 +138,35 @@ python3 scripts/fetch_post.py <blogId> <logNo> --json    # stats.chars, stats.im
 |---|---|---|---|---|---|---|---|---|---|
 
 - **제목안**: 지역 키워드 1~2개(의정부·양주·동두천·포천·서울북부) 포함. 이 지역 조합이 `final.md`의 `variation.region`이 된다.
-- **핵심 키워드**: **단일 키워드 1개**. 그대로 `final.md` frontmatter `keyword:`에 들어가며 린트가 제목에 이 키워드가 포함되는지 검사한다 → 제목안에 그 문자열이 그대로 들어 있어야 한다.
+- **핵심 키워드**: **단일 키워드 1개, 4어절 이하**. 그대로 `final.md` frontmatter `keyword:`에 들어가며 린트가 제목에 이 키워드가 포함되는지 검사한다 → 제목안에 그 문자열이 **연속해서 그대로**(공백 무시) 들어 있어야 한다. 아래 자체검증이 이를 강제한다.
 - **출처 글**: `https://blog.naver.com/<blogId>/<logNo>` 링크와 원제.
 - **우리 블로그 중복**: ○/△/× + 근거 제목(△는 어떤 각도로 다르게 갈지).
 - **추천 유형**: `정보` 또는 `홍보` — `final.md`의 `variation.type`이 된다. 홍보는 후보 전체의 1/4 이하.
-- **변주 제안**: 구조 템플릿(절차형/비교형/체크리스트형/Q&A형) · 도입부 유형(질문/상황/통계/오해 바로잡기). `work/variation-log.md` 최근 5줄이 있으면 겹치지 않게 제안한다.
+- **변주 제안**: 구조 템플릿(절차형/비교형/체크리스트형/Q&A형) · 도입부 유형(질문/상황/통계/오해 바로잡기). `work/variation-log.md` 최근 5줄이 있으면 겹치지 않게 제안한다(파일이 없는 첫 실행은 제약 없음).
 
-표 아래에 **"제외한 주제와 이유"** 표를 둔다 — 중복 ○는 전부 여기에 올리고(출처 글, 이유, 근거 우리 글 제목), 금칙어·범위 밖 제외도 적는다.
+표 아래에 **"제외한 주제와 이유"** 표를 둔다 — §4 6번 형식(글마다 1행).
+
+**필수 자체검증(표를 닫기 전에 실행, 실패한 행은 고치고 다시 실행)** — 규칙: 공백을 모두 제거한 뒤 `키워드 in 제목안`이어야 하고(공백 무시 부분 문자열), 키워드는 4어절 이하, 어떤 제목안·키워드에도 `knowledge/academy-profile.md` `## 금칙어`의 백틱 단어가 없어야 한다(금칙어도 공백 무시 비교).
+
+```bash
+python3 - <<'PY'
+import re, glob
+f = sorted(glob.glob("work/topics/*-topics.md"))[-1]
+t = open(f, encoding="utf-8").read().split("## 제외")[0]
+bad = re.findall(r"`([^`]+)`", re.search(r"## 금칙어(.*?)(?:\n## |\Z)", open("knowledge/academy-profile.md", encoding="utf-8").read(), re.S).group(1))
+ok = True
+for l in t.splitlines():
+    c = [x.strip() for x in l.strip().strip("|").split("|")]
+    if len(c) == 10 and c[0].isdigit():
+        k = c[2].replace(" ", "") in c[1].replace(" ", "")
+        b = [w for w in bad if w.replace(" ", "") in (c[1] + c[2]).replace(" ", "")]
+        n = len(c[2].split()) <= 4
+        print(c[0], "kw-in-title", k, "forbidden", b, "어절<=4", n); ok &= k and n and not b
+print("ALL OK" if ok else "FAIL")
+PY
+```
+
+`FAIL`이면 해당 행의 키워드를 제목안에 **실제로 있는 연속 문자열**로 줄이거나 제목안을 고친다. `ALL OK`가 나오기 전에는 §8로 넘어가지 않는다.
 
 ## 8. 이랑에게 선택 요청
 
