@@ -135,16 +135,21 @@ t = re.sub(r"\A---\n.*?\n---\n", "", t, flags=re.S)
 t = re.sub(r"<!--.*?-->", "", t, flags=re.S)
 hi = int(re.search(r"소제목당 본문 \d+~(\d+)자", open("knowledge/design-system.md", encoding="utf-8").read()).group(1))
 prof = open("knowledge/academy-profile.md", encoding="utf-8").read().splitlines()
-keep = [r.split("|")[2].strip() for r in prof if r.startswith(("| 연락처", "| 주소"))]
-keep += [c.strip() for r in prof if r.startswith("| 과정") for c in r.split("|")[2].split(",")]
+ws = lambda s: re.sub(r"\s+", "", s)
+keep = [r.split("|")[2] for r in prof if r.startswith(("| 연락처", "| 주소"))]
+keep += [c for r in prof if r.startswith("| 과정") for c in r.split("|")[2].split(",")]
+keep = sorted({ws(k) for k in keep if ws(k)}, key=len, reverse=True)  # 공백 무시 비교("3톤 미만" = "3톤미만")
 bad = []
 for ln in t.splitlines():
-    if not ln.strip() or re.match(r"\s*(#|!\[|\[\[|- \[)", ln):
+    # 빈 줄·제목·이미지·관련글 자리·목록(- / * / 1.) 줄은 건너뛴다
+    if not ln.strip() or re.match(r"\s*(#|!\[|\[\[|[-*]\s|\d+\.\s)", ln):
         continue
     for snt in re.split(r"(?<=[.!?])\s+", ln):
-        x = snt
+        x = ws(snt)
         for k in keep:
             x = x.replace(k, "")
+        if re.search(r"(\?|까요[.!]?)$", x):  # 앞 문장의 수치를 되묻는 연결 질문
+            continue
         if re.search(r"\d", x) and "출처:" not in snt and "[출처 필요]" not in snt:
             bad.append(snt.strip())
 print("출처 없는 숫자·조항 문장:", len(bad))
@@ -152,7 +157,9 @@ for b in bad:
     print("  -", b)
 for sec in re.split(r"\n(?=## )", t)[1:]:
     head, _, body = sec.partition("\n")
-    n = len(re.sub(r"\s+", "", re.sub(r"!\[[^\]]*\]\([^)]*\)|https?://\S+", "", body)))
+    # 마지막 절: 관련글 자리(B) 또는 관련글 링크(B')부터 끝(CTA 포함)은 세지 않는다
+    body = re.split(r"\n(?=\s*(?:\[\[관련글|.*blog\.naver\.com/pajuclark/))", "\n" + body)[0]
+    n = len(ws(re.sub(r"!\[[^\]]*\]\([^)]*\)|https?://\S+", "", body)))
     if n > hi:
         print(f"절 상한 초과({hi}자): {head} = {n}자")
 PY
