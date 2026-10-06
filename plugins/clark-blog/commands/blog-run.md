@@ -11,6 +11,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Skill, Agent, SendMessage, A
 - 비어 있음 → Step 0부터 전체 진행.
 - 숫자(예: `3`) → 주제 번호. 오늘 날짜 topics 파일이 있으면 Step 1 리서치를 건너뛰고 게이트 1에서 이 번호를 기본값으로 쓴다.
 - `report NNN` → 맨 아래 "report NNN" 절만 수행하고 끝낸다(preflight·디스패치·파일 쓰기 없음).
+- `resume NNN` → 맨 아래 "resume NNN" 절만 수행한다(이미 만든 `final.md`의 Step 5 업로드만 — 세션이 없어 업로드를 미뤘을 때).
 
 ---
 
@@ -23,12 +24,12 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Skill, Agent, SendMessage, A
 - **서브에이전트는 사용자에게 묻지 않는다.** 질문은 반환 메시지·`factcheck.md`·`seo.md`의 `## 질문`(또는 "메인에 전달") 절로 돌아온다 → 메인이 AskUserQuestion으로 이랑에게 묻고, 답을 `gates.md`에 기록한 뒤 다음 발주·재개 메시지에 원문으로 넣는다.
 - **재개는 `name` + `SendMessage`**: writer는 `blog-writer-<NNN>` 하나를 B부터 끝까지 재개한다(새 Agent로 다시 만들지 않는다). fact-checker는 회차마다 새 Agent `blog-fact-checker-<NNN>-r<k>`(r1, r2).
   `SendMessage`가 실패하면(세션이 바뀌어 에이전트가 없음) 같은 `subagent_type`·같은 `name`으로 새 Agent를 발주하고 B 입력 경로 전부 + B' 메시지를 함께 넣는다(디스패치 1회로 센다).
-- **디스패치 예산**: 글 1편당 기본 3회(B·C·B'), 재작업 포함 **최대 6회**. Agent 발주와 SendMessage 재개를 모두 1회로 센다. 다음 디스패치가 7회째가 되면 **하지 말고 멈춰서** 이랑에게 보고한다(지금까지 횟수·남은 문제·글 폴더 경로). 매 디스패치 뒤 `디스패치 n/6`을 한 줄로 알린다.
+- **디스패치 예산**: 글 1편당 기본 3회(B·C·B'), 재작업 포함 **최대 7회**(B·C·B'·lint 재개 B'·게이트 2 B'·C r2·r2 반영 B'). Agent 발주와 SendMessage 재개를 모두 1회로 센다. 다음 디스패치가 8회째면 **하지 말고 멈춰서** 이랑에게 보고한다(지금까지 횟수·남은 문제·글 폴더 경로). 매 디스패치 뒤 `디스패치 n/7`을 한 줄로 알린다.
 - **완료 확인**: 에이전트가 끝났다고 해도 출력 파일이 실제로 있는지 `ls`로 확인한다. 없으면 같은 에이전트를 1회 재개(예산 포함)하고, 그래도 없으면 멈추고 보고한다.
 - **gates.md 절은 4개로 고정**: `## 선택` · `## 초안피드백` · `## 이미지승인` · `## 업로드`. 다른 절을 만들지 않는다. 절 단위로 **append**하고, 같은 절이 둘 이상이면 **마지막 것이 유효**하다. 각 절 첫 줄은 `- 일시: YYYY-MM-DD HH:MM`.
 - **에러 시 중단·보고**: 예상 밖 오류(스크립트 exit 2, 파일 없음, 요약 줄 없음 등)는 우회하지 말고 멈춘 뒤 단계·명령·출력 첫 줄·글 폴더를 보고한다. 같은 오류 재시도는 한 번까지.
 - 메인은 `draft.md`·`draft-v2.md`·`factcheck*.md`·`research.md`·`seo.md`를 고치지 않는다(예외: B' 생략 규칙의 `cp draft.md draft-v2.md` 한 번).
-- **미검증 사실 변경**: writer 반환의 "사실 문장 변경"이 `없음`이 아니면 그 문장은 fact-checker가 보지 않은 것이다. 게이트 2 전에 생긴 것은 게이트 2 수정 루프의 C r2에서 검토한다. 게이트 2 이후(Step 4·5의 B' 재개)에 생기면 r3를 발주하지 않고, 바뀐 문장을 이랑에게 보여 주며 AskUserQuestion `이대로 진행` / `여기서 중단`.
+- **미검증 사실 변경**: writer 반환의 "사실 문장 변경"이 `없음`이 아니면 그 문장은 fact-checker가 보지 않은 것이다. 게이트 2 전에 생긴 것은 게이트 2 수정 루프의 C r2에서 검토한다. C r2 반영 B'가 다시 "사실 문장 변경"을 보고하거나, 게이트 2 이후(Step 4·5의 B' 재개)에 생기면 r3를 발주하지 않고, 바뀐 문장을 이랑에게 보여 주며 AskUserQuestion `이대로 진행` / `여기서 중단`.
 
 ---
 
@@ -65,12 +66,12 @@ done
 | 결과 | 조치 |
 |---|---|
 | `work-folder: MISSING` | "작업 폴더가 아닙니다. 먼저 `/clark-blog:blog-setup`을 실행하세요." 안내 후 **중단** |
-| `GEMINI_API_KEY: MISSING` | `/clark-blog:blog-setup`의 GEMINI 안내(https://aistudio.google.com/apikey → 작업 폴더 `.env`에 `GEMINI_API_KEY=…`, 채팅에 붙여넣지 않기) 후 **중단** |
+| `GEMINI_API_KEY: MISSING` | `/clark-blog:blog-setup`의 GEMINI 안내(https://aistudio.google.com/apikey → 작업 폴더 `.env`에 `GEMINI_API_KEY=…`, 채팅에 붙여넣지 않기)를 **경고로 보여 주고 계속**. 이 실행은 "키 없음 모드": Step 3에서 photo 슬롯만 처리하고 ai 슬롯은 `보류` |
 | `design-system.md: MISSING` | "`blog-design-system` 스킬로 디자인 시스템을 먼저 만들어 주세요." 안내 후 **중단** |
-| `session: LOGIN_NEEDED` / `MISSING` | `/clark-blog:blog-setup` 4단계의 설치·로그인 절차를 안내("로그인 상태 유지" 체크, 로그인은 사람이 직접) 후 **중단** |
+| `session: LOGIN_NEEDED` / `MISSING` | "업로드 전까지 로그인해 두세요"라고 **경고하고 계속**(Step 4까지 진행). 이 실행은 "세션 없음 모드": Step 5는 `--dry-run`만 하고 로그인 안내 후 끝낸다 |
 | `skill: MISSING` | 플러그인 설치가 깨짐 — 경로를 보고하고 **중단** |
 
-모두 OK면 기발행 글 목록을 갱신한다(`<blogId>`는 위 출력값):
+중단할 항목이 없으면(경고 항목은 모드만 기억하고) 기발행 글 목록을 갱신한다(`<blogId>`는 위 출력값):
 
 ```bash
 python3 scripts/fetch_posts.py --all <blogId> --out work/pajuclark-posts.json
@@ -172,7 +173,7 @@ grep -q '^## 질문' "$F" && echo "질문: 있음" || echo "질문: 없음"
 
 `factcheck.md`(또는 `factcheck-r2.md`)에 `## 질문`이 있으면 **FAIL+출처필요 건수와 무관하게** 다음 디스패치 전에 이랑에게 묻는다. writer 반환의 `## 질문`, `seo.md` 끝 "메인에 전달"도 같다.
 - AskUserQuestion으로 질문을 원문 그대로(id 포함) 묻는다(한 번에 최대 4개, 넘으면 나눠서).
-- 답은 즉시 `P/gates.md`에 `## 초안피드백` 절로 append한다: `- 일시: …` · `- 질문 답: <id> — <이랑 답 원문>`(여러 줄). 게이트 2 기록 때 다시 쓰는 `## 초안피드백`에도 이 `질문 답:` 줄을 그대로 옮겨 적는다(마지막 절이 유효하므로).
+- 답은 즉시 `P/gates.md`에 `## 초안피드백` 절로 append한다: `- 일시: …` · `- 질문 답: <id> — <이랑 답 원문>`(여러 줄). 이전 `## 초안피드백`이 있으면 그 절의 `제목:`·`톤:`·`길이:`·`수정 요청 원문:`·기존 `질문 답:` 줄을 새 절에 그대로 옮겨 적는다(마지막 절만 유효하므로 앞 내용이 사라지지 않게). 게이트 2 기록 때 다시 쓰는 `## 초안피드백`에도 `질문 답:` 줄을 그대로 옮겨 적는다.
 - 다음 writer 재개 메시지에 `질문 답:` 원문을 넣는다.
 
 ## [B'] 수정 + SEO — writer 재개 (디스패치 3)
@@ -278,13 +279,13 @@ lint.json 형식: `{"stage", "pass", "checks": [{"id","value","rule","result","d
      C와 같은 명령으로 `factcheck-r2.md` 요약 줄을 읽는다. 질문이 있으면 질문 처리. FAIL+출처필요 ≥ 1 또는 `## 시점 표기 권고`가 `없음`이 아니면 B' 재개(디스패치 +1): `mode: B'` · `범위: 팩트체크 r2 반영` · `factcheck: work/posts/<NNN-slug>/factcheck-r2.md` · `질문 답:`(있으면). 0건·권고 없음이면 재개하지 않는다.
   3. Step 2 lint를 다시 돌린다(FAIL이면 Step 2 규칙대로 B' 재개 1회).
   4. 바뀐 부분(제목·수정 요청 반영 결과·r2 요약)을 보여 주고 AskUserQuestion `이미지 단계로 진행` / `여기서 중단`. 이 루프는 **한 번만** 돈다 — 추가 수정 요청이면 멈추고 보고한다(이랑이 직접 고치거나 다음 실행에서 이어 감).
-- 위 어느 디스패치든 7회째가 되면 하지 않고 멈춘다(예산).
+- 위 어느 디스패치든 8회째가 되면 하지 않고 멈춘다(예산, 최대 7회).
 
 ## Step 3. 이미지 (메인)
 
 **Skill 도구로** `clark-blog:blog-image-director`를 실행해 메인이 직접 수행한다(입력 `work/posts/<NNN-slug>/draft-v2.md`·`gates.md`). 산출: `P/images/image-plan.md`(열: 슬롯 | 위치(소제목) | 목적 | 유형 | 프롬프트(ai) / 후보 파일(photo) | 캡션(alt) | 파일 | 검수), `P/images/NN-<slug>.png`(ai 슬롯), 게이트 3용 요약.
 
-- 요약에 **"Gate: GEMINI 키 대기"**가 있으면 이랑에게 `.env`의 `GEMINI_API_KEY`를 채워 달라고 안내하고, 채웠다고 하면 `uv run --with google-genai --with pillow scripts/gen_image.py work/posts/<NNN-slug>/images/image-plan.md`를 다시 실행한다.
+- **키 없음 모드**(Step 0 `GEMINI_API_KEY: MISSING`) 또는 요약에 **"Gate: GEMINI 키 대기"**가 있으면: 생성은 하지 않는다(스킬 1~5단계로 image-plan.md를 쓰고 photo 후보만 고른다). image-plan.md에서 `유형`이 `ai`인 행의 `파일`을 `보류`, `검수`를 `키 없음`으로 적는다. 이랑이 그 자리에서 키를 채웠다고 하면 `uv run --with google-genai --with pillow scripts/gen_image.py work/posts/<NNN-slug>/images/image-plan.md`를 실행해 보류를 풀어도 된다.
 - `파일` 경로 규칙: ai = **글 폴더 기준** `images/NN-<slug>.png`, photo = **작업 폴더 기준** `photos/<파일>`.
 
 ## ● 게이트 3 — 이미지 승인 (슬롯별)
@@ -293,6 +294,7 @@ lint.json 형식: `{"stage", "pass", "checks": [{"id","value","rule","result","d
 **AskUserQuestion**으로 슬롯별로 묻는다(한 호출에 최대 4슬롯, 넘으면 나눠서):
 - ai 슬롯: `승인` / `재생성`(바꿀 점은 기타 입력) / `실사진으로 교체`(파일명은 기타 입력) / `제거`
 - photo 슬롯: 후보 파일 최대 3개(`photos/…`) / `제거`(다른 파일·AI 전환은 기타 입력)
+- `보류` 슬롯(키 없음): `보류 유지`(final.md에서 빠지고 나중에 Step 3 재실행) / `제거` / `실사진으로 교체`(파일명은 기타 입력)
 
 `P/gates.md`에 append:
 
@@ -312,13 +314,13 @@ lint.json 형식: `{"stage", "pass", "checks": [{"id","value","rule","result","d
   uv run --with google-genai --with pillow scripts/gen_image.py work/posts/<NNN-slug>/images/image-plan.md --only NN
   ```
   새 이미지를 Read로 열어 검수하고(스킬 7단계 기준) `검수` 열을 갱신한 뒤 그 슬롯만 다시 묻는다. 슬롯당 재생성 최대 2회, 글 전체 생성 호출 ai 슬롯 수 × 3 이내(스킬 규칙). 넘으면 `제거`·실사진 중에서 고르게 한다.
-- 제거 → 그 행의 `파일`을 `제거`, `검수`를 `제거(이랑)`로 고친다.
+- 제거 → 그 행의 `파일`을 `제거`, `검수`를 `제거(이랑)`로 고친다. 보류 유지 → 그대로 둔다(`파일` = `보류`).
 
-모든 슬롯이 승인·확정·제거로 끝나면 마지막 결과로 `## 이미지승인`을 한 번 더 append한다(재질문이 있었던 경우). 그다음 Step 4.
+모든 슬롯이 승인·확정·제거·보류 유지로 끝나면 마지막 결과로 `## 이미지승인`을 한 번 더 append한다(재질문이 있었던 경우). 그다음 Step 4.
 
 ## Step 4. `final.md` 생성 (메인)
 
-`draft-v2.md`의 `![슬롯: …]()`을 등장 순서(01, 02, …)대로 `image-plan.md`의 같은 슬롯 행과 맞춰 `![<캡션(alt)>](<절대경로>)`로 바꾼다. `파일`이 `images/…`면 글 폴더 기준, `photos/…`면 작업 폴더 기준으로 절대경로를 만들고, `제거`면 그 줄을 지운다. frontmatter·B안 주석·본문 나머지는 그대로 둔다(B안 주석은 업로드 스크립트가 지운다).
+`draft-v2.md`의 `![슬롯: …]()`을 등장 순서(01, 02, …)대로 `image-plan.md`의 같은 슬롯 행과 맞춰 `![<캡션(alt)>](<절대경로>)`로 바꾼다. `파일`이 `images/…`면 글 폴더 기준, `photos/…`면 작업 폴더 기준으로 절대경로를 만들고, `제거`·`보류`면 그 줄을 지운다(지운 자리의 연속 빈 줄은 하나로 줄인다). frontmatter·B안 주석·본문 나머지는 그대로 둔다(B안 주석은 업로드 스크립트가 지운다).
 
 ```bash
 python3 - work/posts/<NNN-slug> <<'PY'
@@ -332,11 +334,11 @@ for line in open(f"{P}/draft-v2.md", encoding="utf-8").read().splitlines():
     if not re.fullmatch(r"\s*!\[슬롯:[^\]]*\]\(\s*\)\s*", line):
         out.append(line); continue
     n += 1; k = "%02d" % n; r = plan.get(k)
-    f = (r or {}).get("file", "")
+    f = (r or {}).get("file", "").strip("` ")
     if r is None:
         err.append(f"{k}: image-plan.md에 행 없음")
-    elif f == "제거":
-        continue                                   # 제거된 슬롯은 줄째 삭제
+    elif f in ("제거", "보류"):
+        continue                                   # 제거·보류 슬롯은 줄째 삭제
     elif f.startswith("images/"):
         a = os.path.abspath(os.path.join(P, f))    # ai = 글 폴더 기준
     elif f.startswith("photos/"):
@@ -352,13 +354,16 @@ if n != len(rows):
     err.append(f"슬롯 수 불일치: draft-v2.md {n}개 / image-plan.md {len(rows)}행")
 if err:
     sys.exit("final.md를 만들지 않았습니다:\n" + "\n".join(err))
-open(f"{P}/final.md", "w", encoding="utf-8").write("\n".join(out) + "\n")
-print(f"final.md 작성 — 슬롯 {n}개(제거 {sum(1 for r in rows if r['file'] == '제거')}개)")
+text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).rstrip("\n") + "\n"   # 지운 줄 자리의 연속 빈 줄 정리
+open(f"{P}/final.md", "w", encoding="utf-8").write(text)
+cnt = lambda v: sum(1 for r in rows if r["file"].strip("` ") == v)
+print(f"final.md 작성 — 슬롯 {n}개(제거 {cnt('제거')}개, 보류 {cnt('보류')}개)")
 PY
 python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage final --json > work/posts/<NNN-slug>/lint.json; echo "exit=$?"
 ```
 
 - 스크립트가 "final.md를 만들지 않았습니다"로 끝나면 그 사유대로 Step 3(게이트 3)으로 돌아가 슬롯을 확정한다.
+- **Step 4 → Step 3 되돌아가기는 글 1편당 1회**(아래 lint FAIL의 이미지 쪽 포함). 두 번째로 필요해지면 멈추고 보고한다.
 - lint exit 0 → Step 5. exit 2 → 중단·보고.
 - lint exit 1 → FAIL id별로 처리한다(lint.json의 `checks[].result == "FAIL"`):
   - 이미지 쪽 `image_paths`·`images`(제거로 장수 부족 등) → Step 3/게이트 3에서 해당 슬롯을 다시 정한 뒤 Step 4 재실행.
@@ -369,13 +374,16 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage final --json
 
 **Skill 도구로** `clark-blog:blog-naver-upload`를 실행해 그 절차대로 메인이 직접 수행한다. 출력은 stdout·stderr를 함께 받는다(경고 줄이 stderr에도 나온다).
 
+`<blogId>`는 Step 0 출력의 `blogId:` 값(`own_blog.blogId`) — 세션 확인과 업로드가 같은 블로그를 쓰게 항상 넘긴다.
+
 1. dry-run — lint·frontmatter·이미지 경로만 확인(세션 확인·업로드 생략). title·category·tags·이미지 수를 이랑에게 보여 준다.
    ```bash
-   bash scripts/naver_upload.sh work/posts/<NNN-slug>/final.md --dry-run 2>&1; echo "exit=$?"
+   bash scripts/naver_upload.sh work/posts/<NNN-slug>/final.md --blog-id <blogId> --dry-run 2>&1; echo "exit=$?"
    ```
+   **세션 없음 모드**(Step 0 `session: LOGIN_NEEDED`/`MISSING`)면 여기서 멈춘다: dry-run 결과를 보여 주고 `/clark-blog:blog-setup` 4단계 로그인 절차(작업 폴더에서 `login_setup.py`, "로그인 상태 유지" 체크, 사람이 직접)를 안내한 뒤 "로그인 후 `/clark-blog:blog-run resume <NNN>`으로 업로드만 이어서"라고 알리고 종료 보고로 간다. `## 업로드`와 variation-log 줄은 **쓰지 않는다**.
 2. dry-run이 exit 0일 때만 실제 임시저장(따로 호출). 창이 뜨고 수 분 걸릴 수 있다고 미리 알린다.
    ```bash
-   bash scripts/naver_upload.sh work/posts/<NNN-slug>/final.md 2>&1; echo "exit=$?"
+   bash scripts/naver_upload.sh work/posts/<NNN-slug>/final.md --blog-id <blogId> 2>&1; echo "exit=$?"
    ```
 
 종료 코드별 대응(dry-run도 같은 코드를 쓴다):
@@ -433,7 +441,20 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage final --json
 - 임시저장 제목 · 카테고리 · 태그 · 이미지 수(스크립트 출력값)
 - 스크립트 출력에 `경고: 카테고리/태그 설정 실패`가 있었으면 반드시: "임시저장은 됐지만 카테고리·태그가 빠졌을 수 있습니다. 임시저장 글에서 직접 확인해 주세요."
 - 안내 문구: **"네이버 앱/웹 → 글쓰기 → 임시저장 글 → 미리보기 → 발행"** (발행은 이랑이 직접)
-- 글 폴더 경로, 디스패치 `n/6`, 게이트 1에서 남긴 번호가 있으면 "`/clark-blog:blog-run <번호>`로 이어서"
+- 보류 슬롯이 있으면: "AI 이미지 보류 n개 — 키 설정 후 Step 3 재실행"(`.env`에 키를 넣고 이 글로 `/clark-blog:blog-run`의 Step 3부터 다시; 보류 슬롯은 이번 final.md에서 빠져 있다)
+- 세션 없음 모드로 업로드를 미뤘으면: "임시저장은 아직 안 됐습니다. 로그인 후 `/clark-blog:blog-run resume <NNN>`" (위 임시저장 항목·발행 안내 대신)
+- 글 폴더 경로, 디스패치 `n/7`, 게이트 1에서 남긴 번호가 있으면 "`/clark-blog:blog-run <번호>`로 이어서"
+
+---
+
+## resume NNN (업로드만 이어서)
+
+인자가 `resume NNN`이면 이 절만 수행한다. 글 폴더 `P=$(ls -d work/posts/NNN-* | head -1)`에 `final.md`가 있어야 한다(없으면 "final.md가 없습니다 — `/clark-blog:blog-run`으로 Step 4까지 먼저 진행하세요"라고 답하고 끝). 디스패치는 하지 않는다.
+
+1. Step 0의 preflight Bash를 그대로 실행해 `blogId`와 `session:`을 얻는다. `session: OK`가 아니면 로그인 안내 후 끝낸다.
+2. `gates.md`에 `## 업로드`가 이미 있으면 "이미 임시저장했습니다(<일시>)"라고 알리고, 다시 올릴지 AskUserQuestion `다시 올리기` / `그만두기`(중복 임시저장 주의).
+3. `python3 scripts/lint_post.py <P>/final.md --stage final --json > <P>/lint.json` — exit 1이면 FAIL id를 보고하고 끝낸다(텍스트 수정이 필요하면 이 명령이 아니라 전체 워크플로우로).
+4. Step 5의 dry-run → 실제 임시저장(`--blog-id <blogId>`) → exit code 표대로 대응 → 성공 기록(`## 업로드` + variation-log 1줄) → 종료 보고.
 
 ---
 
