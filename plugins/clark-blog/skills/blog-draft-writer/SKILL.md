@@ -114,16 +114,49 @@ frontmatter 없이 첫 줄이 `# 제목`이다(frontmatter는 B'에서 붙인다
   - 장면 설명은 한 줄로 "무엇이 보이는지"(장소·장비·인물 위치·앵글). 글자·간판·숫자·얼굴 클로즈업이 필요한 장면은 쓰지 않는다(⑤). 한 글 안에서 같은 장면을 반복하지 않는다.
   - 총 장수 = 올림(본문 글자수 ÷ 280) 근처, 최소 5장. 이미지 사이 본문이 420자를 넘으면 그 절 중간에 슬롯을 하나 더 넣는다. 중간 절에 **지게차 작업 장면(적재·하역·코스 주행) 최소 1장**.
   - 유형이 홍보면 슬롯은 학원 실사진으로 채울 장면(교육장·장비·실습)으로 쓴다(⑤ "홍보성 글 = 실사진만").
-- **분량**: 본문 1700~3500자(공백 제외, 이미지·URL 제외), 소제목당 250~470자.
+- **분량**: 본문 1700~3500자(공백 제외, 이미지·URL 제외), 소제목당 250~470자. 각 `## ` 절 본문은 `design-system.md` ③의 소제목당 글자수 **상한**(현재 470자 — 숫자는 ③에서 읽는다)을 넘지 않는다. 넘으면 절을 둘로 나누거나(소제목 7개 이내) 줄인다.
 - **톤(②)**: 해요체 중심, 짧은 문장, 한 문단 2~4문장, 독자 처지로 말 걸기, 다음 절 예고 한 문장, 어려운 용어는 첫 등장 때 괄호 풀이. ② 금지 표현("~하여야 한다", "합격 보장", "100%", "무조건" 등) 쓰지 않음.
 - **강조**: `**굵게**` 1000자당 6~12회 — 핵심 수치·결론·독자 질문 줄에만. 음영 인용 `> ` 글당 1~3개 — 절 끝 요약·주의사항에만(소제목을 인용으로 만들지 않는다).
-- **출처**: 수치·일정·조항·수수료 문장 끝에 `(출처: <URL>)`. URL은 `research.md`의 그 행과 같은 주소(법령은 독자용 `https://www.law.go.kr/법령/<법령명>`을 써도 되며 이때 조문 번호·시행일자를 문장에 적는다). 출처 각주 2개 이상. 출처가 없으면 그 문장을 쓰지 않거나 `[출처 필요]`.
+- **출처**: 숫자·연도·기간·금액·조항 번호가 들어간 **모든** 문장 끝에 `(출처: <URL>)`를 붙인다. 앞에서 이미 인용한 조항을 다시 언급하는 문장("같은 규칙 제n조" 등), 도입부·마무리의 요약 문장도 예외가 아니다(같은 URL을 반복해도 된다). 예외는 `academy-profile.md`의 학원 연락처·주소·과정명을 그대로 쓴 부분뿐이다. URL은 `research.md`의 그 행과 같은 주소(법령은 독자용 `https://www.law.go.kr/법령/<법령명>`을 써도 되며 이때 조문 번호·시행일자를 문장에 적는다). 출처 각주 2개 이상. 출처가 없으면 그 문장을 쓰지 않거나 `[출처 필요]`.
 - **관련글 자리**: 본문 끝, CTA 앞에 `[[관련글: <주제>]]` 2~3줄. 주제는 ⑥ 기준(같은 과정·자격 / 다음 단계 / 최근 1년)으로 짐작할 수 있게 쓴다. URL은 B'에서 실제 값으로 바꾼다 — 초안에 URL을 지어 넣지 않는다.
 - **CTA(⑥ 2)**: 3~4문장 한 단락. 학원명 "클라크중장비운전학원", 연락처·주소는 `academy-profile.md` 그대로, 수강생 지역 1~2개, 과정 1개, 강점은 "강점" 행 범위 안. 고른 CTA 유형(`structure-templates.md` 3절)의 앞세우는 내용을 쓰되 예문·이전 글 문장을 복사하지 않는다. 정보성 글은 CTA를 짧게.
 - **홍보글(⑨)**: 사실은 `academy-profile.md` 범위 안에서만. 수강료·자기부담금·할인 등 수치는 쓰지 않는다.
 - **금칙(⑧)**: `academy-profile.md` `## 금칙어`의 단어(공백 무시) 0건. 목록 밖이라도 **학원(우리·저희·이곳)이 주어인 문장에 시험의 장소·장비·코스를 함께 쓰지 않는다**(의미 규칙). 레퍼런스·소스 블로그·자기 기존 글 문장 복붙 금지.
 
-### B-5. lint (draft 단계)
+### B-5. 자체 점검 → lint (draft 단계)
+
+lint 전에 아래를 실행해 (a) 숫자·`제n조`가 들어 있는데 `출처:`가 없는 문장과 (b) ③ 상한을 넘는 절을 찾고, 모두 고친 뒤 다시 실행한다. (a) 0건·(b) 없음이 될 때까지 반복한다(B'에서는 파일명을 `draft-v2.md`로).
+
+```bash
+python3 - work/posts/<NNN-slug>/draft.md <<'PY'
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+t = re.sub(r"\A---\n.*?\n---\n", "", t, flags=re.S)
+t = re.sub(r"<!--.*?-->", "", t, flags=re.S)
+hi = int(re.search(r"소제목당 본문 \d+~(\d+)자", open("knowledge/design-system.md", encoding="utf-8").read()).group(1))
+prof = open("knowledge/academy-profile.md", encoding="utf-8").read().splitlines()
+keep = [r.split("|")[2].strip() for r in prof if r.startswith(("| 연락처", "| 주소"))]
+keep += [c.strip() for r in prof if r.startswith("| 과정") for c in r.split("|")[2].split(",")]
+bad = []
+for ln in t.splitlines():
+    if not ln.strip() or re.match(r"\s*(#|!\[|\[\[|- \[)", ln):
+        continue
+    for snt in re.split(r"(?<=[.!?])\s+", ln):
+        x = snt
+        for k in keep:
+            x = x.replace(k, "")
+        if re.search(r"\d", x) and "출처:" not in snt and "[출처 필요]" not in snt:
+            bad.append(snt.strip())
+print("출처 없는 숫자·조항 문장:", len(bad))
+for b in bad:
+    print("  -", b)
+for sec in re.split(r"\n(?=## )", t)[1:]:
+    head, _, body = sec.partition("\n")
+    n = len(re.sub(r"\s+", "", re.sub(r"!\[[^\]]*\]\([^)]*\)|https?://\S+", "", body)))
+    if n > hi:
+        print(f"절 상한 초과({hi}자): {head} = {n}자")
+PY
+```
 
 ```bash
 python3 scripts/lint_post.py work/posts/<NNN-slug>/draft.md --stage draft --json
@@ -131,11 +164,11 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/draft.md --stage draft --json
 
 - draft 단계는 `frontmatter`·`title_keyword`·`tags_count`·`related_links`·`image_paths`·`h1_once`·`seo_*` 4종을 SKIP한다. 보는 항목: `forbidden`, `chars`, `h2_count`, `images`, `sources`, `placeholder_sources`(`variation`은 frontmatter가 없으니 SKIP).
 - FAIL 항목을 고치고 다시 실행한다(재실행 최대 2회). `placeholder_sources` FAIL은 일부러 남긴 `[출처 필요]` 때문이면 그대로 두고 건수를 보고한다. 그 밖의 FAIL이 2회 뒤에도 남으면 남은 항목과 이유를 보고한다.
-- **판정을 선언하지 않는다**: "lint 통과했으니 완성" 같은 말을 쓰지 않는다. 마지막 실행의 `pass` 값과 FAIL id·값을 그대로 옮긴다. 품질 판정은 fact-checker와 이랑의 몫이다.
+- **판정을 선언하지 않는다**: "lint 통과했으니 완성" 같은 말을 쓰지 않는다. 마지막 실행의 `pass` 값과 FAIL id·값을 그대로 옮기고, 위 자체 점검의 "출처 없는 숫자·조항 문장" 건수(0이어야 함)와 절 상한 초과 건수도 함께 보고한다. 품질 판정은 fact-checker와 이랑의 몫이다.
 
 ### B-6. 반환(메인에게, 10줄 이내)
 
-출력 경로(`research.md`·`draft.md`), 제목, keyword, 변주 선택(structure·intro·region·cta·type), lint 마지막 결과(`pass` 값 + FAIL id·값, stats의 chars·h2_count·images·sources·bold_runs·quotes), `[출처 필요]` 건수, 그리고 메인/이랑이 답해야 하는 것이 있으면 `## 질문` 절.
+출력 경로(`research.md`·`draft.md`), 제목, keyword, 변주 선택(structure·intro·region·cta·type), lint 마지막 결과(`pass` 값 + FAIL id·값, stats의 chars·h2_count·images·sources·bold_runs·quotes), 출처 없는 숫자·조항 문장 건수, `[출처 필요]` 건수, 그리고 메인/이랑이 답해야 하는 것이 있으면 `## 질문` 절.
 
 ---
 
@@ -206,6 +239,7 @@ variation: {type: <정보|홍보>, structure: <절차형|비교형|체크리스�
 python3 scripts/lint_post.py work/posts/<NNN-slug>/draft-v2.md --stage draft --json
 ```
 
+- lint 전에 B-5의 자체 점검(파일명 `draft-v2.md`)을 먼저 돌려 출처 없는 숫자·조항 문장 0건·절 상한 초과 없음으로 만들고 건수를 보고한다.
 - final 단계 검사(이미지 경로 등)는 이미지 치환 뒤 메인이 `final.md`로 돌린다. 여기서는 draft 단계로 `forbidden`·`chars`·`h2_count`·`images`·`sources`·`placeholder_sources`·`variation`(frontmatter가 있으니 PASS여야 함)을 본다. FAIL은 고치고 재실행(최대 2회). `placeholder_sources`는 B'에서 0이어야 한다.
 - 판정 선언 금지 — 결과만 옮긴다.
 - 반환(메인에게, 10줄 이내): `draft-v2.md`·`seo.md` 경로, 제목 A/B안, 반영한 factcheck 항목 id 목록, **사실 문장 변경**(B'-1에서 factcheck 항목 밖으로 바뀐 사실 문장 — 없으면 "없음"), 관련글 2~3개(제목·logNo), lint 마지막 결과(`pass` + FAIL id·값), `## 질문`(있으면).
