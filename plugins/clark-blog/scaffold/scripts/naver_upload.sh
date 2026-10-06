@@ -79,8 +79,8 @@ if isinstance(tags, str): tags = [t.strip() for t in tags.strip("[]").split(",")
 meta = {"title": fm.get("title", ""), "category": fm.get("category", ""), "tags": ",".join(tags),
         "keyword": fm.get("keyword", ""), "variation": fm.get("variation", ""),
         "images": len(imgs), "lines": len(btxt.splitlines()),
-        "bad_images": [p for p in imgs if not p.startswith("/")],
-        "missing_images": [p for p in imgs if p.startswith("/") and not os.path.isfile(p)]}
+        "bad_images": [p for p in imgs if not os.path.isabs(p)],
+        "missing_images": [p for p in imgs if os.path.isabs(p) and not os.path.isfile(p)]}
 open(out + ".md", "w", encoding="utf-8").write(btxt)
 json.dump(meta, open(out + ".json", "w", encoding="utf-8"), ensure_ascii=False)
 '
