@@ -6,6 +6,7 @@
 #            20 세션 없음/만료 | 30 create-draft 실패 | 31 list-drafts에서 제목 확인 불가
 # naver-blog-cli 는 실패해도 exit 0 이므로 종료 코드가 아니라 stdout 문구로 판정한다.
 set -u
+export NAVER_BLOG_READONLY=1   # 발행·삭제 서브커맨드를 CLI에서 제거 — 임시저장까지만
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BLOG_ID="pajuclark"
@@ -15,8 +16,8 @@ FINAL=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --blog-id) BLOG_ID="${2:-}"; shift 2 ;;
-    --category) CATEGORY_OPT="${2:-}"; shift 2 ;;
+    --blog-id) [ $# -ge 2 ] || { echo "오류: $1 값이 필요합니다." >&2; exit 2; }; BLOG_ID="$2"; shift 2 ;;
+    --category) [ $# -ge 2 ] || { echo "오류: $1 값이 필요합니다." >&2; exit 2; }; CATEGORY_OPT="$2"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
     -h|--help) sed -n '2,7p' "$0"; exit 0 ;;
     -*) echo "오류: 알 수 없는 옵션: $1" >&2; exit 2 ;;
@@ -62,11 +63,17 @@ while body and not body[0].strip(): body.pop(0)
 while body and re.match(r"^\s*<!--.*?-->\s*$", body[0]):   # 제목 B안/A안 주석
     body.pop(0)
     while body and not body[0].strip(): body.pop(0)
-for i, l in enumerate(body):                              # 첫 H1 한 줄 제거
-    if re.match(r"^#\s+\S", l):
-        del body[i]; break
+fence = False
+for i, l in enumerate(body):          # 첫 ## 앞, 코드펜스 밖의 H1 한 줄 제거
+    if re.match(r"^\s*(```|~~~)", l):
+        fence = not fence
+    elif not fence:
+        if re.match(r"^##\s", l):
+            break
+        if re.match(r"^#\s+\S", l):
+            del body[i]; break
 btxt = "\n".join(body).strip() + "\n"
-imgs = re.findall(r"!\[[^\]]*\]\(([^)\s]*)", btxt)
+imgs = [re.sub(r"\s+\"[^\"]*\"\s*$", "", m).strip() for m in re.findall(r"!\[[^\]]*\]\(([^)]*)\)", btxt)]
 tags = fm.get("tags") or []
 if isinstance(tags, str): tags = [t.strip() for t in tags.strip("[]").split(",") if t.strip()]
 meta = {"title": fm.get("title", ""), "category": fm.get("category", ""), "tags": ",".join(tags),
@@ -102,17 +109,6 @@ if [ "$PRE_RC" -ne 0 ]; then
 $(printf '%s\n' "$PRE" | sed 's/^/  - /')"
 fi
 
-# 2) 세션 확인 (종료 코드 아닌 stdout 문구로 판정)
-if ! command -v naver-blog-cli >/dev/null 2>&1; then
-  die 20 "naver-blog-cli 를 찾을 수 없습니다. /clark-blog:blog-setup 으로 설치를 확인하세요."
-fi
-SESS="$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli check-session 2>&1)"
-case "$SESS" in
-  "세션 정상"*"글쓰기 가능"*) ;;
-  *) die 20 "네이버 세션을 사용할 수 없습니다: $(printf '%s' "$SESS" | head -n1)
-작업 폴더에서 python ~/naver-blog-cli/login_setup.py 로 직접 로그인하세요 (\"로그인 상태 유지\" 체크)." ;;
-esac
-
 # 3~4) frontmatter·본문
 HELP_RC=0; python3 -c "$PYH" "$HERE" "$FINAL" body "$WORK/meta" || HELP_RC=$?
 [ "$HELP_RC" -eq 0 ] || die 2 "frontmatter 를 읽지 못했습니다."
@@ -134,6 +130,7 @@ BODY="$WORK/body.md"; mv "$WORK/meta.md" "$BODY"
 
 # 5) dry-run
 if [ "$DRY" -eq 1 ]; then
+  echo "[dry-run] 세션 확인 생략(dry-run)"
   echo "[dry-run] title: $TITLE"
   echo "[dry-run] category: $CATEGORY"
   echo "[dry-run] tags: $TAGS"
@@ -142,16 +139,34 @@ if [ "$DRY" -eq 1 ]; then
   exit 0
 fi
 
+# 2) 세션 확인 (종료 코드 아닌 stdout 문구로 판정; dry-run 은 위에서 이미 종료)
+if ! command -v naver-blog-cli >/dev/null 2>&1; then
+  die 20 "naver-blog-cli 를 찾을 수 없습니다. /clark-blog:blog-setup 으로 설치를 확인하세요."
+fi
+SESS="$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli check-session 2>&1)"
+case "$SESS" in
+  "세션 정상"*"글쓰기 가능"*) ;;
+  *) die 20 "네이버 세션을 사용할 수 없습니다: $(printf '%s' "$SESS" | head -n1)
+작업 폴더에서 python ~/naver-blog-cli/login_setup.py 로 직접 로그인하세요 (\"로그인 상태 유지\" 체크)." ;;
+esac
+
 # 6) 임시저장
-CREATE="$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli create-draft --title "$TITLE" --file "$BODY" --category "$CATEGORY" --tags "$TAGS" 2>&1)"
+CREATE="$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli create-draft --title="$TITLE" --file "$BODY" --category="$CATEGORY" --tags="$TAGS" 2>&1)"
 case "$CREATE" in
-  *"임시저장 완료"*) ;;
+  *"작성 실패"*|*"임시저장이 안 된 것 같습니다"*|*"못 찾음"*) CREATE_BAD=1 ;;
+  *"임시저장 완료"*) CREATE_BAD=0 ;;
+  *) CREATE_BAD=1 ;;
+esac
+case "$CREATE_BAD" in
+  0) ;;
   *) die 30 "임시저장에 실패했습니다 (naver-blog-cli 출력):
 $(printf '%s\n' "$CREATE" | tail -n 5 | sed 's/^/  | /')
 references/naver-blog-cli.md 의 실패 유형(에디터 변경·이미지 10MB·세션 만료)을 확인하세요." ;;
 esac
+WARN=""
 case "$CREATE" in
-  *"설정 실패"*) echo "경고: 카테고리/태그 설정이 일부 실패했습니다. 네이버 임시저장 글에서 확인하세요." >&2
+  *"설정 실패"*) WARN="경고: 카테고리/태그 설정 실패 — 네이버 임시저장 글에서 직접 확인"
+                 echo "$WARN" >&2
                  log "경고 | 설정 실패 포함: $(printf '%s' "$CREATE" | grep '설정 실패' | head -n1)" ;;
 esac
 
@@ -167,4 +182,5 @@ log "성공 | title=$TITLE | category=$CATEGORY | tags=$TAGS | 이미지=$NIMG |
 echo "임시저장 완료 — 네이버 앱/웹 → 글쓰기 → 임시저장 글 → 미리보기 → 발행"
 echo "  제목: $TITLE"
 echo "  카테고리: $CATEGORY / 태그: $TAGS / 이미지: ${NIMG}장"
+[ -n "$WARN" ] && echo "$WARN"
 exit 0

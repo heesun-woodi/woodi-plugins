@@ -11,14 +11,16 @@ PROFILE = "# 학원\n\n## 금칙어\n\n- `실기시험장`\n"
 
 TITLE = "지게차운전기능사 실기 순서, 처음이라면 이렇게 준비하세요"
 STUB = """#!/usr/bin/env bash
-echo "$* | id=${NAVER_BLOG_ID:-}" >> "$STUB_LOG"
+echo "$* | id=${NAVER_BLOG_ID:-} | ro=NAVER_BLOG_READONLY=${NAVER_BLOG_READONLY:-}" >> "$STUB_LOG"
 case "$1" in
   check-session)
     if [ "${STUB_SESSION:-ok}" = ok ]; then echo "세션 정상 (https://blog.naver.com/x, 글쓰기 가능)";
     else echo "확인 실패: 세션 파일 없음: playwright-state/storage_state.json"; echo "python login_setup.py 를 먼저 실행해서 직접 로그인하세요."; fi ;;
   create-draft)
     while [ $# -gt 0 ]; do [ "$1" = --file ] && cp "$2" "$STUB_BODY"; shift; done
-    if [ "${STUB_CREATE:-ok}" = ok ]; then echo "임시저장 완료: 제목"; else echo "임시저장 버튼을 못 찾음 (에디터 변경?)"; fi ;;
+    if [ "${STUB_CREATE:-ok}" = ok ]; then echo "임시저장 완료: 제목";
+    elif [ "$STUB_CREATE" = warn ]; then echo "임시저장 완료: 제목 [설정 실패(카테고리)]";
+    elif [ "$STUB_CREATE" = mixed ]; then echo "임시저장 완료: 제목 [작성 실패: x]"; else echo "임시저장 버튼을 못 찾음 (에디터 변경?)"; fi ;;
   list-drafts)
     if [ "${STUB_LIST:-ok}" = ok ]; then echo "$STUB_TITLE  (2026-10-06)"; else echo "임시저장된 글이 없습니다"; fi ;;
 esac
@@ -134,6 +136,33 @@ class NaverUploadTest(unittest.TestCase):
         self.assertIn("절대경로", p.stderr)
         self.assertIn("https://example.com/a.png", p.stderr)
 
+    def test_missing_option_value_exit_2(self):
+        for opt in ("--blog-id", "--category"):
+            p = subprocess.run(["bash", os.path.join(self.root, "scripts", "naver_upload.sh"), self.final, opt],
+                               cwd=self.root, capture_output=True, text=True, timeout=20)
+            self.assertEqual(p.returncode, 2, p.stderr)
+            self.assertIn("값이 필요합니다", p.stderr)
+
+    def test_dry_run_skips_session(self):
+        p = self.run_script("--dry-run", STUB_SESSION="fail")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("세션 확인 생략", p.stdout)
+        self.assertNotIn("check-session", self.stub_calls())
+
+    def test_dry_run_image_exit_12_without_login(self):
+        self.write_final(self.sample(img="https://example.com/a.png"))
+        p = self.run_script("--dry-run", STUB_SESSION="fail")
+        self.assertEqual(p.returncode, 12, p.stderr)
+
+    def test_setting_failure_warning_in_stdout(self):
+        p = self.run_script(STUB_CREATE="warn")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("경고: 카테고리/태그 설정 실패 — 네이버 임시저장 글에서 직접 확인", p.stdout)
+
+    def test_failure_phrase_overrides_success_phrase(self):
+        p = self.run_script(STUB_CREATE="mixed")
+        self.assertEqual(p.returncode, 30, p.stderr)
+
     def test_session_failure_exit_20(self):
         p = self.run_script(STUB_SESSION="fail")
         self.assertEqual(p.returncode, 20, p.stderr)
@@ -147,8 +176,11 @@ class NaverUploadTest(unittest.TestCase):
         self.assertIn("임시저장 완료", p.stdout)
         calls = self.stub_calls()
         self.assertIn("id=myblog", calls)
-        self.assertIn("create-draft --title " + TITLE, calls)
-        self.assertIn("--category 클라크중장비운전학원", calls)
+        self.assertIn("create-draft --title=" + TITLE, calls)
+        self.assertIn("--category=클라크중장비운전학원", calls)
+        self.assertNotIn("publish-draft", calls)
+        self.assertNotIn("delete-", calls)
+        self.assertIn("NAVER_BLOG_READONLY=1", calls)
         with open(self.sbody, encoding="utf-8") as f:
             body = f.read()
         self.assertNotIn("제목 B안", body)

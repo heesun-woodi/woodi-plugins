@@ -20,8 +20,8 @@ description: Use when a finished Clark academy blog post (posts/NNN-slug/final.m
    scripts/naver_upload.sh work/posts/NNN-slug/final.md [--blog-id pajuclark] [--category "클라크중장비운전학원"]
    ```
 
-   처음 한 번은 `--dry-run`으로 title/category/tags/이미지 수를 확인해도 된다(이것도 세션 확인까지는 실제로 수행한다).
-   스크립트가 하는 일, 순서대로: ① `lint_post.py --stage final` + 금칙어·`[[`·빈 이미지·`[출처 필요]` 이중 검사 → ② `naver-blog-cli check-session` → ③ frontmatter 읽기 → ④ 본문 임시파일 생성(frontmatter·첫 `# ` H1·`<!-- 제목 B안/A안 … -->` 주석 제거, 이미지 절대경로 확인) → ⑤ `create-draft` → ⑥ `list-drafts`에 제목이 보이는지 확인 → ⑦ `work/posts/NNN-slug/upload.log`에 기록.
+   처음 한 번은 `--dry-run`으로 title/category/tags/이미지 수·이미지 경로를 확인해도 된다(lint·frontmatter·본문·이미지 검사만 하고 세션 확인과 업로드는 생략하므로 로그인 없이 가능).
+   스크립트가 하는 일, 순서대로: ① `lint_post.py --stage final` + 금칙어·`[[`·빈 이미지·`[출처 필요]` 이중 검사 → ② frontmatter 읽기 → ③ 본문 임시파일 생성(frontmatter·첫 `# ` H1·`<!-- 제목 B안/A안 … -->` 주석 제거, 이미지 절대경로 확인; `--dry-run`은 여기서 종료) → ④ `naver-blog-cli check-session` → ⑤ `create-draft` → ⑥ `list-drafts`에 제목이 보이는지 확인 → ⑦ `work/posts/NNN-slug/upload.log`에 기록.
    창이 뜨고 글 하나에 수 분 걸린다. CAPTCHA가 뜨면 이랑에게 창을 직접 처리하도록 알린다.
 
 2. 종료 코드별 대응:
@@ -46,6 +46,7 @@ description: Use when a finished Clark academy blog post (posts/NNN-slug/final.m
      ```
      2026-10-07 | posts/001-지게차운전기능사-실기-준비 | 정보 | 절차형 | 상황 | 의정부+양주 | 관련글
      ```
+   - 스크립트 출력에 `경고: 카테고리/태그 설정 실패`가 있으면 성공 보고에 반드시 "카테고리·태그 직접 확인" 안내를 포함한다(임시저장은 됐지만 설정이 빠졌을 수 있다).
    - 이랑에게 안내: "네이버 앱/웹 → 글쓰기 → 임시저장 글 → 미리보기 → 발행".
 
 ## 계정 안전 수칙
