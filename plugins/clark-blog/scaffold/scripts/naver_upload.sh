@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # naver_upload.sh — final.md → 네이버 블로그 "임시저장"까지만 (발행은 사람).
-# 사용: naver_upload.sh <posts/NNN-slug/final.md> [--blog-id pajuclark] [--category "이름"] [--dry-run]
+# 사용: naver_upload.sh <posts/NNN-slug/final.md> [--blog-id pajuclark] [--category "이름"(frontmatter에 category가 없을 때의 대체값)] [--dry-run]
 # 작업 폴더(cwd)에서 실행한다 (세션 파일 playwright-state/storage_state.json 이 cwd 기준).
 # 종료 코드: 0 성공 | 2 사용 오류 | 10 lint 실패 | 11 이중 검사 실패 | 12 이미지 경로 문제
 #            20 세션 없음/만료 | 30 create-draft 실패 | 31 list-drafts에서 제목 확인 불가
@@ -90,7 +90,7 @@ meta() { python3 -c "$JGET" "$WORK/meta.json" "$1"; }
 log "시작 | $FINAL | blog-id=$BLOG_ID | dry-run=$DRY"
 
 # 1) lint (+ 이중 안전장치)
-LINT_OUT="$(python3 "$HERE/lint_post.py" "$FINAL" --stage final --json 2>&1)"; LINT_RC=$?
+LINT_OUT="$(python3 "$HERE/lint_post.py" "$FINAL" --stage final --json 2>"$WORK/lint.err")"; LINT_RC=$?
 if [ "$LINT_RC" -ne 0 ]; then
   FAILS="$(printf '%s' "$LINT_OUT" | python3 -c '
 import json,sys
@@ -99,7 +99,9 @@ try:
     for c in d["checks"]:
         if c["result"]=="FAIL": print("  - %s: %s %s" % (c["id"], c["rule"], c["detail"]))
 except Exception:
-    print("  - lint 출력을 해석하지 못했습니다")')"
+    print("  - lint 출력을 해석하지 못했습니다")
+    sys.exit(1)')" || FAILS="$FAILS
+$(sed 's/^/  | /' "$WORK/lint.err")"
   die 10 "lint_post.py 실패 — 업로드를 시작하지 않습니다.
 $FAILS"
 fi
@@ -147,7 +149,8 @@ SESS="$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli check-session 2>&1)"
 case "$SESS" in
   "세션 정상"*"글쓰기 가능"*) ;;
   *) die 20 "네이버 세션을 사용할 수 없습니다: $(printf '%s' "$SESS" | head -n1)
-작업 폴더에서 python ~/naver-blog-cli/login_setup.py 로 직접 로그인하세요 (\"로그인 상태 유지\" 체크)." ;;
+작업 폴더에서 터미널로 직접 로그인하세요 (\"로그인 상태 유지\" 체크):
+  NAVER_STATE=\"\$PWD/playwright-state/storage_state.json\" \"\$(uv tool dir)/naver-blog-cli/bin/python\" ~/naver-blog-cli/login_setup.py" ;;
 esac
 
 # 6) 임시저장

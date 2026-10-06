@@ -24,11 +24,19 @@
 uv tool install git+https://github.com/spegas/naver-blog-cli
 ```
 
-설치되면 `naver-blog-cli`가 `~/.local/bin`에 생깁니다(PATH에 없으면 `uv tool update-shell`). 브라우저 조작용 Playwright Chromium이 없다면 `~/.local/share/uv/tools/naver-blog-cli/bin/playwright install chromium`으로 설치합니다. 로그인 스크립트 `login_setup.py`는 이 설치에 들어 있지 않으므로 저장소를 한 번 clone해 둡니다: `git clone https://github.com/spegas/naver-blog-cli ~/naver-blog-cli`.
+설치되면 `naver-blog-cli`가 `~/.local/bin`에 생깁니다(PATH에 없으면 `uv tool update-shell`). 브라우저 조작용 Playwright Chromium이 없다면 `"$(uv tool dir)/naver-blog-cli/bin/playwright" install chromium`으로 설치합니다. 로그인 스크립트 `login_setup.py`는 이 설치에 들어 있지 않으므로 저장소를 한 번 clone해 둡니다: `git clone https://github.com/spegas/naver-blog-cli ~/naver-blog-cli`.
 
-**로그인은 1회, 사람이 직접.** 작업 폴더에서 `NAVER_STATE="$PWD/playwright-state/storage_state.json" ~/.local/share/uv/tools/naver-blog-cli/bin/python ~/naver-blog-cli/login_setup.py`(`login_setup`)를 실행하면 브라우저가 열립니다. 직접 로그인하고, **로그인 버튼을 누르기 전에 "로그인 상태 유지"를 체크**하세요(체크하지 않으면 몇 시간 뒤 글쓰기만 로그인 페이지로 바뀝니다). CAPTCHA·2차 인증도 사람이 처리합니다. 비밀번호는 어디에도 저장되지 않고 쿠키 파일(`playwright-state/`)만 남으며, 이 파일은 계정 접근권한 그 자체이니 공유하지 마세요. 세션이 만료되면 같은 명령을 다시 실행합니다.
+**로그인은 1회, 사람이 직접.** **터미널**(Claude 입력창 아님)에서 작업 폴더로 이동한 뒤 아래 명령을 실행하면 브라우저가 열립니다.
 
-**GEMINI_API_KEY(이미지 생성용).** https://aistudio.google.com/apikey 에서 발급받아 작업 폴더의 `.env`에 넣습니다. `/clark-blog:blog-setup`이 `.env.example`을 복사해 주므로 값만 채우면 됩니다. `.env`는 커밋하지 마세요. 키가 없어도 `/clark-blog:blog-run`은 중단되지 않고 "키 없음 모드"로 진행합니다. 이 경우 AI 이미지 슬롯은 `보류`가 되고 실사진 슬롯만 처리됩니다. 이미지는 장당 약 $0.04(추정치, [비용](#비용) 참고)입니다.
+```bash
+cd ~/clark-blog-work
+NAVER_STATE="$PWD/playwright-state/storage_state.json" \
+  "$(uv tool dir)/naver-blog-cli/bin/python" ~/naver-blog-cli/login_setup.py
+```
+
+직접 로그인하고, **로그인 버튼을 누르기 전에 "로그인 상태 유지"를 체크**하세요(체크하지 않으면 몇 시간 뒤 글쓰기만 로그인 페이지로 바뀝니다). CAPTCHA·2차 인증도 사람이 처리합니다. 비밀번호는 어디에도 저장되지 않고 쿠키 파일(`playwright-state/`)만 남으며, 이 파일은 계정 접근권한 그 자체이니 공유하지 마세요. 세션이 만료되면 같은 명령을 다시 실행합니다.
+
+**GEMINI_API_KEY(이미지 생성용).** https://aistudio.google.com/apikey 에서 발급받아 작업 폴더의 `.env`에 넣습니다. **Gemini 키는 결제(Billing)가 설정된 Google Cloud 프로젝트에서 발급해야 이미지 생성이 됩니다**(무료 키는 429 쿼터 초과로 실패합니다). `/clark-blog:blog-setup`이 `.env.example`을 복사해 주므로 값만 채우면 됩니다. `.env`는 커밋하지 마세요. 키가 없어도 `/clark-blog:blog-run`은 중단되지 않고 "키 없음 모드"로 진행합니다. 이 경우 AI 이미지 슬롯은 `보류`가 되고 실사진 슬롯만 처리됩니다. 단 `photos/`의 실사진이 5장 미만이면 이미지 수 기준(5장 이상)을 채우지 못해 **임시저장까지 가지 못합니다**. 시작할 때 "초안까지만 진행"할지 묻고, 이미지 단계(Step 3) 뒤에서 멈춥니다. 키나 실사진을 준비한 뒤 `/clark-blog:blog-run resume <NNN>`으로 이어 갑니다. 이미지는 장당 약 $0.04(추정치, [비용](#비용) 참고)입니다.
 
 ```
 GEMINI_API_KEY=여기에_키
@@ -40,7 +48,7 @@ GEMINI_API_KEY=여기에_키
 
 ## 설치와 첫 사용
 
-아래 `/`로 시작하는 것들은 **터미널이 아니라 Claude Code 입력창**에 그대로 칩니다.
+아래 `/`로 시작하는 것들은 **터미널이 아니라 Claude Code 입력창**에 그대로 칩니다. `bash` 코드블록은 **터미널**에서 실행합니다.
 
 ```
 /plugin marketplace add heesun-woodi/woodi-plugins
@@ -48,23 +56,37 @@ GEMINI_API_KEY=여기에_키
 /reload-plugins
 ```
 
-1. 작업 폴더를 만들고 셋업합니다. 작업 폴더는 **플러그인 저장소 밖**이어야 합니다.
+플러그인을 설치한 뒤에는 아래 순서로 진행합니다.
+
+1. uv가 없다면 **터미널**에서 먼저 설치합니다.
+
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+
+2. **터미널**에서 작업 폴더를 만들고, 그 폴더에서 Claude Code를 엽니다. 작업 폴더는 **플러그인 저장소 밖**이어야 하고, 글 작업을 할 때는 **매번** 이 폴더에서 Claude Code를 엽니다.
+
+   ```bash
+   mkdir -p ~/clark-blog-work && cd ~/clark-blog-work && claude
+   ```
+
+3. Claude Code 입력창에서 셋업합니다.
 
    ```
    /clark-blog:blog-setup ~/clark-blog-work
    ```
 
-   환경(uv·Python·Chromium·naver-blog-cli·네이버 세션·`GEMINI_API_KEY`)을 진단해 표로 보여 주고, 빠진 항목의 설치 명령을 알려 줍니다. 이어서 `scaffold/`를 작업 폴더로 복사합니다(`cp -rn`이라 이미 있는 파일은 덮어쓰지 않습니다. 그래서 다시 실행해도 이랑이 고친 `knowledge/`는 안전합니다).
-2. `.env`에 `GEMINI_API_KEY`를 채웁니다(채팅에 키를 붙여넣지 마세요).
-3. 네이버 로그인을 **1회, 사람이 직접** 합니다(위 "로그인은 1회" 참고). "로그인 상태 유지"를 반드시 체크합니다.
-4. `knowledge/design-system.md`(초기값)와 `knowledge/academy-profile.md`를 한 번 훑어보고, 고칠 것이 있으면 작업 폴더에서 직접 고칩니다. 레퍼런스를 추가했다면 `blog-design-system` 스킬로 문서를 갱신합니다.
-5. 글을 시작합니다.
+   환경(uv·Python·Chromium·naver-blog-cli·네이버 세션·`GEMINI_API_KEY`)을 진단해 표로 보여 주고, 빠진 항목마다 실행할 명령을 출력합니다. 이어서 `scaffold/`를 작업 폴더로 복사합니다. `scripts/`는 매번 최신본으로 갱신하고, `knowledge/`는 보존합니다(이랑이 고친 파일은 덮어쓰지 않고, 아직 채워지지 않은 스텁만 교체).
+4. 진단표가 알려 준 설치·로그인 명령은 **터미널에서** 실행합니다(Claude 입력창이 아님). 네이버 로그인은 **1회, 사람이 직접** 하고 "로그인 상태 유지"를 반드시 체크합니다(위 "로그인은 1회" 참고). `.env`에 `GEMINI_API_KEY`를 채웁니다(채팅에 키를 붙여넣지 마세요).
+5. Claude Code 입력창에서 `/clark-blog:blog-setup ~/clark-blog-work`를 다시 실행해 모든 항목이 "확인됨"인지 봅니다.
+6. `knowledge/design-system.md`(초기값)와 `knowledge/academy-profile.md`를 한 번 훑어보고, 고칠 것이 있으면 작업 폴더에서 직접 고칩니다. 레퍼런스를 추가했다면 `blog-design-system` 스킬로 문서를 갱신합니다.
+7. 글을 시작합니다.
 
    ```
    /clark-blog:blog-run
    ```
 
-   주제 번호를 미리 알면 `/clark-blog:blog-run 3`, 이미 만든 글의 진행 상황은 `/clark-blog:blog-run report 001`, 로그인이 안 돼 업로드를 미룬 글은 로그인 뒤 `/clark-blog:blog-run resume 001`로 업로드만 이어서 합니다. 한 번 실행에 글은 **한 편**입니다.
+   주제 번호를 미리 알면 `/clark-blog:blog-run 3`, 이미 만든 글의 진행 상황은 `/clark-blog:blog-run report 001`, 로그인이 안 돼 업로드를 미룬 글(또는 키·실사진이 없어 이미지 단계에서 멈춘 글)은 준비가 끝난 뒤 `/clark-blog:blog-run resume 001`로 이어서 합니다. 한 번 실행에 글은 **한 편**입니다.
 
 ## 워크플로우
 
@@ -92,7 +114,7 @@ GEMINI_API_KEY=여기에_키
 
 ## 작업 폴더 구조
 
-`/clark-blog:blog-setup`이 만드는 폴더(예: `~/clark-blog-work/`)입니다.
+`/clark-blog:blog-setup`이 만드는 폴더(예: `~/clark-blog-work/`)입니다. 다시 실행하면 `scripts/`는 플러그인 최신본으로 덮어쓰고, `knowledge/`는 이미 있는 파일을 보존합니다(`Task N에서 채움` 문구가 남은 스텁만 교체). 그 밖의 파일은 없을 때만 복사합니다.
 
 ```
 .env  .env.example  .gitignore  README.md
@@ -155,7 +177,9 @@ work/
 
 `--dry-run`을 붙이면 lint·머리말·이미지 경로만 확인하고 네이버에는 접속하지 않습니다.
 
-**세션 만료.** 몇 시간 뒤 글쓰기만 로그인 페이지로 바뀌거나 공인 IP가 바뀌면 세션이 풀립니다. "로그인 상태 유지"를 체크하지 않은 경우가 가장 흔합니다. 작업 폴더에서 로그인 명령(`login_setup.py`)을 다시 실행하고, 로그인이 끝나면 `/clark-blog:blog-run resume <NNN>`으로 업로드만 이어갑니다. 세션이 없을 때 `/clark-blog:blog-run`은 Step 4까지 진행하고 업로드만 미룹니다.
+**이미지 생성이 429(쿼터 초과)로 멈출 때.** `gen_image.py`가 `APIError 429`와 함께 남은 슬롯을 중단했다면, Gemini 이미지 모델을 쓸 수 없는 키입니다. https://aistudio.google.com/apikey 에서 그 키의 Google Cloud 프로젝트에 결제(Billing)가 설정돼 있는지 확인하세요. 무료 키는 기다려도 풀리지 않습니다. 결제를 설정한 뒤 Step 3(이미지)부터 다시 진행합니다.
+
+**세션 만료.** 몇 시간 뒤 글쓰기만 로그인 페이지로 바뀌거나 공인 IP가 바뀌면 세션이 풀립니다. "로그인 상태 유지"를 체크하지 않은 경우가 가장 흔합니다. 터미널에서 작업 폴더로 이동해 위 로그인 명령(`login_setup.py`)을 다시 실행하고, 로그인이 끝나면 `/clark-blog:blog-run resume <NNN>`으로 업로드만 이어갑니다. 세션이 없을 때 `/clark-blog:blog-run`은 Step 4까지 진행하고 업로드만 미룹니다.
 
 **네이버가 에디터를 개편했을 때.** `naver-blog-cli`가 `…을 못 찾음`을 계속 내면 CLI의 셀렉터가 낡은 것입니다. 이 플러그인은 셀렉터·Playwright 코드를 새로 쓰지 않으므로 `naver-blog-cli`의 업데이트를 기다리는 것이 기본입니다. 급할 때는 이랑 승인 아래 aside(AI 브라우저)에 `final.md`와 `images/`를 주고 "임시저장까지만, 발행 금지"로 수동 지시하는 폴백이 있습니다(로그인·2단계 인증은 이 경우에도 이랑이 합니다).
 

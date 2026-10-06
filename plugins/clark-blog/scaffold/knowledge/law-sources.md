@@ -29,7 +29,7 @@
 | 용도 | URL 템플릿 | 비고 |
 |---|---|---|
 | 법령 검색 | `https://www.law.go.kr/DRF/lawSearch.do?OC=test&target=law&type=XML&query=<법령명>` | `<법령일련번호>`(MST), `<시행일자>`, `<현행연혁코드>` 반환 |
-| 법령 본문 (이름으로) | `https://www.law.go.kr/DRF/lawService.do?OC=test&target=law&LM=<법령명>&type=XML` | MST 없이 현행 본문. 조문은 `<조문단위>`/`<조문내용>` |
+| 법령 본문 (이름으로) | `https://www.law.go.kr/DRF/lawService.do?OC=test&target=law&LM=<법령명>&type=XML` | `LM=`은 시행 예정본을 반환할 수 있음 → `lawSearch.do`로 MST 확인 후 시행일자가 미래면 현행 MST로 재조회. 조문은 `<조문단위>`/`<조문내용>` |
 | 법령 본문 (MST로) | `https://www.law.go.kr/DRF/lawService.do?OC=test&target=law&MST=<법령일련번호>&type=XML` | 특정 시점 판본 고정 시 |
 
 실측: 검색 `query=건설기계관리법` → `totalCnt` 3건: 건설기계관리법 MST 283763(시행 2026-08-28), 건설기계관리법 시행령 MST 284659, 건설기계관리법 시행규칙 MST 285023(시행 2026-03-24). 본문 응답 크기: 법 263,697바이트·`<조문단위>` 94개, 시행규칙 1,580,610바이트·`<조문단위>` 153개. 시행령도 같은 방식이다. 응답은 `text/xml;charset=UTF-8`이고 `OC=test`가 그대로 통했다. 주의: MST와 시행일은 개정되면 바뀐다. 글에 법령을 인용할 때는 검색 응답의 `시행일자`를 같이 적는다.
@@ -38,7 +38,7 @@
 
 | 출처 | URL | 상태 | 비고 (쓸 수 있는 주장 유형 / 안 될 때 대안) |
 |---|---|---|---|
-| law.go.kr DRF API | `https://www.law.go.kr/DRF/lawSearch.do?OC=test&target=law&type=XML&query=건설기계관리법` , `…/lawService.do?OC=test&target=law&LM=건설기계관리법&type=XML` | 본문 가능 | 응시 자격·면허 종류·톤수 기준·갱신 등 조문 인용 전부. 시행규칙도 가능 |
+| law.go.kr DRF API | `https://www.law.go.kr/DRF/lawSearch.do?OC=test&target=law&type=XML&query=건설기계관리법` , `…/lawService.do?OC=test&target=law&LM=건설기계관리법&type=XML` | 본문 가능 | 응시 자격·면허 종류·톤수 기준·갱신 등 조문 인용 전부. 시행규칙도 가능. 단 `LM=`은 시행 예정본을 반환할 수 있음 → `lawSearch.do`로 MST 확인 후 시행일자가 미래면 현행 MST로 재조회 |
 | law.go.kr 상세 페이지 | `https://www.law.go.kr/법령/건설기계관리법` | 껍데기만 (200, 1,279바이트, JS 렌더링) | 독자에게 보여줄 링크로만 쓰고, 사실 확인은 위 API로 한다 |
 | 큐넷 종목 상세 - 껍데기 페이지 | `https://www.q-net.or.kr/crf005.do?id=crf00503&gSite=Q&gId=&jmCd=7875` | 껍데기만 (200, 약 227KB지만 본문 텍스트는 메뉴뿐, 종목명도 JS가 채움) | 이 URL 자체로는 사실 확인 불가. 아래 탭 조각 URL을 쓴다 |
 | 큐넷 종목 탭: 검정현황 | `https://www.q-net.or.kr/crf005.do?id=crf00503s01&gSite=Q&gId=&jmCd=7875` | 본문 가능 (7,816바이트) | 연도별 필기·실기 응시·합격·합격률(예: 2025 필기 응시 110,316 합격 73.6%, 실기 응시 126,757 합격 47.9%). 합격률 주장에 사용 |

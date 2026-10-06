@@ -125,7 +125,7 @@ frontmatter 없이 첫 줄이 `# 제목`이다(frontmatter는 B'에서 붙인다
 
 ### B-5. 자체 점검 → lint (draft 단계)
 
-lint 전에 아래를 실행해 (a) 숫자·`제n조`가 들어 있는데 `출처:`가 없는 문장과 (b) ③ 상한을 넘는 절을 찾고, 모두 고친 뒤 다시 실행한다. (a) 0건·(b) 없음이 될 때까지 반복한다(B'에서는 파일명을 `draft-v2.md`로).
+lint 전에 아래를 실행해 (a) 숫자·`제n조`가 들어 있는데 `출처:`가 없는 문장(면허 등급 `1종`·`2종`, 톤수 `3톤` 같은 표기가 유일한 숫자인 문장은 제외 — 이 표기의 사실 여부는 fact-checker가 확인)과 (b) ③ 상한을 넘는 절을 찾고, 모두 고친 뒤 다시 실행한다. (a) 0건·(b) 없음이 될 때까지 반복한다(B'에서는 파일명을 `draft-v2.md`로).
 
 ```bash
 python3 - work/posts/<NNN-slug>/draft.md <<'PY'
@@ -150,6 +150,7 @@ for ln in t.splitlines():
             x = x.replace(k, "")
         if re.search(r"(\?|까요[.!]?)$", x):  # 앞 문장의 수치를 되묻는 연결 질문
             continue
+        x = re.sub(r"[12]종|\d+(?:\.\d+)?톤", "", x)  # 면허 등급(1종·2종)·톤수(3톤)만 숫자인 문장은 제외
         if re.search(r"\d", x) and "출처:" not in snt and "[출처 필요]" not in snt:
             bad.append(snt.strip())
 print("출처 없는 숫자·조항 문장:", len(bad))

@@ -13,7 +13,8 @@
   키가 실제로 든 첫 파일을 쓴다(`export KEY=…`, 따옴표, 줄 끝 `# 주석` 허용). 값은 출력하지 않는다.
 - 비용: 장당 COST_PER_IMAGE_USD(추정치, 검증된 단가 아님 — https://ai.google.dev/pricing 확인). 재생성도 과금된다.
 - 의존: google-genai(필수, --dry-run 제외), pillow(선택: 가로 --size px 리사이즈. 없으면 원본 저장 + 경고).
-종료 코드: 0=전부 성공(또는 dry-run), 1=실패 슬롯 있음, 2=사용 오류.
+- HTTP 타임아웃 HTTP_TIMEOUT_MS. 503은 백오프 재시도, 429(쿼터 초과)는 재시도하지 않고 남은 슬롯을 중단한다.
+종료 코드: 0=전부 성공(또는 dry-run), 1=실패 슬롯 있음(429 중단 포함), 2=사용 오류.
 """
 import argparse
 import base64
@@ -26,7 +27,10 @@ import time
 
 DEFAULT_MODEL = "gemini-3-pro-image"  # product-mockup generate_scenes.py와 같은 모델
 MAX_RETRIES = 3
-RETRY_STATUS_CODES = {429, 503}
+RETRY_STATUS_CODES = {503}
+HTTP_TIMEOUT_MS = 120_000  # 응답 없는 소켓에서 무기한 대기하지 않게
+QUOTA_HINT = ("Gemini 이미지 모델은 결제(Billing)가 설정된 Google Cloud 프로젝트의 키가 필요합니다 — "
+              "https://aistudio.google.com/apikey 에서 결제 설정 확인")
 BASE_BACKOFF_SECONDS = 2.0
 # 추정치 — gemini-3-pro-image 2K 단가는 요금 페이지에서 확인(https://ai.google.dev/pricing)
 COST_PER_IMAGE_USD = 0.04
@@ -233,6 +237,10 @@ def save_image(data, out_path, width):
         return "%dx%d" % im.size
 
 
+class QuotaExceeded(RuntimeError):
+    """429 RESOURCE_EXHAUSTED — 재시도해도 풀리지 않으므로 남은 슬롯까지 중단한다."""
+
+
 def generate_one(client, model, prompt):
     from google.genai import errors as genai_errors
     last = None
@@ -246,6 +254,8 @@ def generate_one(client, model, prompt):
             return base64.b64decode(img.data)
         except genai_errors.APIError as e:
             code = getattr(e, "code", None)
+            if code == 429:
+                raise QuotaExceeded(f"APIError 429: {getattr(e, 'message', e)}") from None
             last = RuntimeError(f"APIError {code}: {getattr(e, 'message', e)}")
             if code in RETRY_STATUS_CODES and attempt < MAX_RETRIES:
                 time.sleep(BASE_BACKOFF_SECONDS * 2 ** (attempt - 1))
@@ -318,12 +328,13 @@ def main(argv=None):
         return 2
     try:
         from google import genai
+        from google.genai import types as genai_types
     except ImportError:
         print("오류: google-genai가 없습니다. `uv run --with google-genai --with pillow scripts/gen_image.py …`로 실행하세요.",
               file=sys.stderr)
         return 2
     print(f"키: {src}에서 읽음 · 모델: {a.model}")
-    client = genai.Client(api_key=key)
+    client = genai.Client(api_key=key, http_options=genai_types.HttpOptions(timeout=HTTP_TIMEOUT_MS))
     os.makedirs(out_dir, exist_ok=True)
 
     updates, ok, fail = {}, [], []
@@ -338,6 +349,12 @@ def main(argv=None):
             try:
                 data = generate_one(client, a.model, build_prompt(r["prompt"]))
                 res = save_image(data, out, a.size)
+            except QuotaExceeded as e:
+                rest = [t["slot"] for t in targets[targets.index(r):]]
+                print(f"[FAIL] {r['slot']} {e}\n중단: 쿼터 초과(429) — 남은 슬롯 {', '.join(rest)}은 생성하지 않았습니다.\n"
+                      f"{QUOTA_HINT}", file=sys.stderr)
+                fail.extend(rest)
+                break
             except Exception as e:  # noqa: BLE001 — 실패 슬롯은 보고하고 다음으로
                 print(f"[FAIL] {r['slot']} {type(e).__name__}: {e}", file=sys.stderr)
                 fail.append(r["slot"])

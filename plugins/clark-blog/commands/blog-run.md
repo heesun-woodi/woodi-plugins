@@ -11,7 +11,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Skill, Agent, SendMessage, A
 - 비어 있음 → Step 0부터 전체 진행.
 - 숫자(예: `3`) → 주제 번호. 오늘 날짜 topics 파일이 있으면 Step 1 리서치를 건너뛰고 게이트 1에서 이 번호를 기본값으로 쓴다.
 - `report NNN` → 맨 아래 "report NNN" 절만 수행하고 끝낸다(preflight·디스패치·파일 쓰기 없음).
-- `resume NNN` → 맨 아래 "resume NNN" 절만 수행한다(이미 만든 `final.md`의 Step 5 업로드만 — 세션이 없어 업로드를 미뤘을 때).
+- `resume NNN` → 맨 아래 "resume NNN" 절만 수행한다(멈춘 곳부터 이어서 — `final.md`가 있으면 Step 5 업로드만(세션이 없어 업로드를 미뤘을 때), 없고 `draft-v2.md`·`## 초안피드백`이 있으면 Step 3 이미지부터(키·실사진이 없어 멈췄을 때)).
 
 ---
 
@@ -45,6 +45,13 @@ if [ -n "$GEMINI_API_KEY" ]; then echo "GEMINI_API_KEY: env에 있음"
 elif [ -f .env ] && grep -q '^GEMINI_API_KEY=.' .env; then echo "GEMINI_API_KEY: .env에 있음"
 else echo "GEMINI_API_KEY: MISSING"; fi
 [ -f knowledge/design-system.md ] && echo "design-system.md: OK" || echo "design-system.md: MISSING"
+MINIMG=$(grep -o 'min_images=[0-9]*' knowledge/design-system.md 2>/dev/null | head -1 | cut -d= -f2)
+echo "min_images: ${MINIMG:-5}"
+echo "photos: $(find photos -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) 2>/dev/null | wc -l | tr -d ' ')"
+for s in fetch_posts.py fetch_post.py dedupe_check.py lint_post.py gen_image.py naver_upload.sh; do
+  if [ ! -f "scripts/$s" ]; then echo "script: MISSING $s"
+  elif ! cmp -s "scripts/$s" "${CLAUDE_PLUGIN_ROOT}/scaffold/scripts/$s"; then echo "script: OUTDATED $s"; fi
+done
 BLOG_ID=pajuclark
 [ -f knowledge/source-blogs.json ] && \
   BLOG_ID=$(python3 -c "import json;o=json.load(open('knowledge/source-blogs.json')).get('own_blog');print((o.get('blogId') if isinstance(o,dict) else o) or 'pajuclark')" 2>/dev/null || echo pajuclark)
@@ -66,10 +73,11 @@ done
 | 결과 | 조치 |
 |---|---|
 | `work-folder: MISSING` | "작업 폴더가 아닙니다. 먼저 `/clark-blog:blog-setup`을 실행하세요." 안내 후 **중단** |
-| `GEMINI_API_KEY: MISSING` | `/clark-blog:blog-setup`의 GEMINI 안내(https://aistudio.google.com/apikey → 작업 폴더 `.env`에 `GEMINI_API_KEY=…`, 채팅에 붙여넣지 않기)를 **경고로 보여 주고 계속**. 이 실행은 "키 없음 모드": Step 3에서 photo 슬롯만 처리하고 ai 슬롯은 `보류` |
+| `GEMINI_API_KEY: MISSING` | `/clark-blog:blog-setup`의 GEMINI 안내(https://aistudio.google.com/apikey → 작업 폴더 `.env`에 `GEMINI_API_KEY=…`, 채팅에 붙여넣지 않기)를 **경고로 보여 주고 계속**. 이 실행은 "키 없음 모드": Step 3에서 photo 슬롯만 처리하고 ai 슬롯은 `보류`. 이때 `photos:` < `min_images:`이면 실사진만으로 이미지 수를 못 채워 업로드까지 갈 수 없다 — B 발주 전에 묻는다(아래 [B] 참고) |
 | `design-system.md: MISSING` | "`blog-design-system` 스킬로 디자인 시스템을 먼저 만들어 주세요." 안내 후 **중단** |
 | `session: LOGIN_NEEDED` / `MISSING` | "업로드 전까지 로그인해 두세요"라고 **경고하고 계속**(Step 4까지 진행). 이 실행은 "세션 없음 모드": Step 5는 `--dry-run`만 하고 로그인 안내 후 끝낸다 |
 | `skill: MISSING` | 플러그인 설치가 깨짐 — 경로를 보고하고 **중단** |
+| `script: MISSING` / `script: OUTDATED` | 작업 폴더 `scripts/`가 없거나 플러그인보다 오래됨 → "`/clark-blog:blog-setup <작업 폴더>`를 다시 실행하세요(scripts는 최신본으로 갱신, knowledge는 보존)." 재실행 안내 후 **중단** |
 
 중단할 항목이 없으면(경고 항목은 모드만 기억하고) 기발행 글 목록을 갱신한다(`<blogId>`는 위 출력값):
 
@@ -123,6 +131,10 @@ NNN=$(printf '%03d' $((10#${LAST:-0} + 1))); echo "NNN=$NNN"
 카테고리는 이랑이 다른 것을 지정할 때만 바꾼다(`knowledge/source-blogs.json`의 `own_blog.categories` 값 중 하나).
 
 ## [B] 초안 — `clark-blog:blog-writer` 발주 (디스패치 1)
+
+**발주 전 확인(키 없음 + 실사진 부족)**: 키 없음 모드이고 Step 0의 `photos:` 값이 `min_images:`보다 작으면, 이 글은 이미지 수 기준을 채우지 못해 임시저장까지 갈 수 없다. 이유를 한 줄로 알리고 **AskUserQuestion** `초안까지만 진행(업로드 불가)` / `중단하고 키·사진 준비`.
+- `중단하고 키·사진 준비` → `.env`의 `GEMINI_API_KEY`(blog-setup GEMINI 안내, 결제 설정된 프로젝트의 키) 또는 `photos/`에 실사진 `min_images`장 이상을 준비하라고 안내하고 끝낸다(디스패치 0).
+- `초안까지만 진행(업로드 불가)` → 그대로 B부터 진행한다. Step 3 끝의 "확정 이미지 수 확인"에서 멈추고 `resume`을 안내하게 된다.
 
 ```
 Agent 도구
@@ -316,7 +328,25 @@ lint.json 형식: `{"stage", "pass", "checks": [{"id","value","rule","result","d
   새 이미지를 Read로 열어 검수하고(스킬 7단계 기준) `검수` 열을 갱신한 뒤 그 슬롯만 다시 묻는다. 슬롯당 재생성 최대 2회, 글 전체 생성 호출 ai 슬롯 수 × 3 이내(스킬 규칙). 넘으면 `제거`·실사진 중에서 고르게 한다.
 - 제거 → 그 행의 `파일`을 `제거`, `검수`를 `제거(이랑)`로 고친다. 보류 유지 → 그대로 둔다(`파일` = `보류`).
 
-모든 슬롯이 승인·확정·제거·보류 유지로 끝나면 마지막 결과로 `## 이미지승인`을 한 번 더 append한다(재질문이 있었던 경우). 그다음 Step 4.
+모든 슬롯이 승인·확정·제거·보류 유지로 끝나면 마지막 결과로 `## 이미지승인`을 한 번 더 append한다(재질문이 있었던 경우).
+
+**확정 이미지 수 확인**(Step 4로 가기 전, 매번):
+
+```bash
+python3 - work/posts/<NNN-slug> <<'PY'
+import re, sys
+sys.path.insert(0, "scripts"); from gen_image import parse_plan
+P = sys.argv[1].rstrip("/")
+_, rows = parse_plan(open(f"{P}/images/image-plan.md", encoding="utf-8").read())
+m = re.search(r"min_images=(\d+)", open("knowledge/design-system.md", encoding="utf-8").read())
+need = int(m.group(1)) if m else 5
+ok = sum(1 for r in rows if r["file"].strip("` ").startswith(("images/", "photos/")))   # 보류·제거 제외
+print(f"확정 이미지: {ok} / 필요 {need}")
+PY
+```
+
+- 확정 이미지 ≥ 필요 → Step 4.
+- 확정 이미지 < 필요 → **Step 4로 가지 않고 멈춘다**(final.md를 만들지 않음). 이랑에게 "확정 이미지 n장 / 필요 m장 — 키 또는 실사진 준비 후 `/clark-blog:blog-run resume <NNN>`"이라고 알리고 종료 보고로 간다(키는 결제 설정된 프로젝트의 `GEMINI_API_KEY`, 실사진은 `photos/`에). image-plan.md·gates.md는 그대로 두어 `resume`이 이어받게 한다.
 
 ## Step 4. `final.md` 생성 (메인)
 
@@ -441,17 +471,30 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage final --json
 - 임시저장 제목 · 카테고리 · 태그 · 이미지 수(스크립트 출력값)
 - 스크립트 출력에 `경고: 카테고리/태그 설정 실패`가 있었으면 반드시: "임시저장은 됐지만 카테고리·태그가 빠졌을 수 있습니다. 임시저장 글에서 직접 확인해 주세요."
 - 안내 문구: **"네이버 앱/웹 → 글쓰기 → 임시저장 글 → 미리보기 → 발행"** (발행은 이랑이 직접)
-- 보류 슬롯이 있으면(키 없음 모드): "AI 이미지 보류 n개 — 키 설정 후 Step 3 재실행". 그리고 **이번 final.md(임시저장본)는 계획보다 이미지가 n장 적다**는 것, `.env`에 키를 넣은 뒤 이 글의 Step 3(이미지)부터 다시 돌리면 보류 슬롯을 채운 final.md를 새로 만들 수 있다는 것을 함께 알린다.
+- 보류 슬롯이 있으면(키 없음 모드): "AI 이미지 보류 n개 — 키 설정 후 `/clark-blog:blog-run resume <NNN>`". 그리고 **이번 final.md(임시저장본)는 계획보다 이미지가 n장 적다**는 것, `.env`에 키를 넣은 뒤 `resume <NNN>`을 실행하면 Step 3(이미지)부터 보류 슬롯을 채운 final.md를 새로 만들 수 있다는 것을 함께 알린다.
+- 확정 이미지 부족으로 Step 3 뒤에서 멈췄으면: "final.md·임시저장은 아직 없습니다. 확정 이미지 n장 / 필요 m장 — 키 또는 실사진 준비 후 `/clark-blog:blog-run resume <NNN>`" (위 임시저장 항목·발행 안내 대신)
 - 세션 없음 모드로 업로드를 미뤘으면: "임시저장은 아직 안 됐습니다. 로그인 후 `/clark-blog:blog-run resume <NNN>`" (위 임시저장 항목·발행 안내 대신)
 - 글 폴더 경로, 디스패치 `n/7`, 게이트 1에서 남긴 번호가 있으면 "`/clark-blog:blog-run <번호>`로 이어서"
 
 ---
 
-## resume NNN (업로드만 이어서)
+## resume NNN (멈춘 곳부터 이어서)
 
-인자가 `resume NNN`이면 이 절만 수행한다. 글 폴더 `P=$(ls -d work/posts/NNN-* | head -1)`에 `final.md`가 있어야 한다(없으면 "final.md가 없습니다 — `/clark-blog:blog-run`으로 Step 4까지 먼저 진행하세요"라고 답하고 끝). 디스패치는 하지 않는다.
+인자가 `resume NNN`이면 이 절만 수행한다. **디스패치는 하지 않는다.** 글 폴더 `P=$(ls -d work/posts/NNN-* | head -1)`에서 이어 갈 지점을 정한다.
 
-1. Step 0의 preflight Bash를 그대로 실행하고 Step 0 표대로 판정한다: `work-folder: MISSING`·`skill: MISSING`이면 그 표의 안내 후 끝낸다. `blogId`를 기억한다. `session: OK`가 아니면 로그인 안내 후 끝낸다(`GEMINI_API_KEY`·`design-system.md`는 업로드와 무관 — 무시).
+- `P/final.md`가 있으면 → **업로드 재개**. 단 `P/images/image-plan.md`에 `파일`이 `보류`인 행이 있고 이번 preflight에서 `GEMINI_API_KEY`가 있으면, AskUserQuestion `보류 이미지 채우고 final.md 다시 만들기` / `지금 final.md로 업로드만` — 앞의 것이면 **이미지 재개**로 간다.
+- `final.md`가 없고 `P/draft-v2.md`와 `P/gates.md`의 `## 초안피드백`이 있으면 → **이미지 재개**(Step 3부터).
+- 둘 다 아니면 "이어서 할 단계가 없습니다 — `/clark-blog:blog-run`으로 게이트 2까지 먼저 진행하세요"라고 답하고 끝.
+
+### 이미지 재개 (Step 3 → 게이트 3 → Step 4 → Step 5)
+
+1. Step 0의 preflight Bash를 그대로 실행하고 Step 0 표대로 판정한다: `work-folder`·`script`·`skill`·`design-system.md`가 MISSING/OUTDATED이면 그 표의 안내 후 끝낸다. `GEMINI_API_KEY: MISSING`이면 키 없음 모드, `session`이 OK가 아니면 세션 없음 모드로 계속한다. `blogId`·`photos:`·`min_images:`를 기억한다.
+2. Step 3을 수행한다. `P/images/image-plan.md`가 이미 있으면 새로 쓰지 않고 그 계획을 이어 쓴다: 키가 있으면 `파일`이 `보류`인 ai 슬롯만 `uv run --with google-genai --with pillow scripts/gen_image.py work/posts/<NNN-slug>/images/image-plan.md --only <보류 슬롯 번호(쉼표)>`로 생성하고 Step 3의 검수(스킬 7단계 기준·한도)를 따른다. 실사진을 준비했으면 게이트 3에서 그 슬롯을 `실사진으로 교체`로 고르게 한다.
+3. 게이트 3 → 확정 이미지 수 확인(여전히 부족하면 다시 멈추고 같은 `resume` 안내) → Step 4 → Step 5 → 종료 보고. Step 4·5에서 B' 재개가 필요해지면(lint 텍스트 FAIL, exit 10·11) 디스패치하지 않고 실패 항목을 보고한 뒤 "`/clark-blog:blog-run`(전체 워크플로우)으로 고친 뒤 다시 `resume`"이라고 안내하고 끝낸다.
+
+### 업로드 재개 (Step 5만 — 세션이 없어 업로드를 미뤘을 때)
+
+1. Step 0의 preflight Bash를 그대로 실행하고 Step 0 표대로 판정한다: `work-folder: MISSING`·`script: MISSING`/`OUTDATED`·`skill: MISSING`이면 그 표의 안내 후 끝낸다. `blogId`를 기억한다. `session: OK`가 아니면 로그인 안내 후 끝낸다(`GEMINI_API_KEY`·`design-system.md`는 업로드와 무관 — 무시. 단 위의 보류 이미지 질문에는 `GEMINI_API_KEY` 결과를 쓴다).
 2. `gates.md`에 `## 업로드`가 이미 있으면 "이미 임시저장했습니다(<일시>)"라고 알리고, 다시 올릴지 AskUserQuestion `다시 올리기` / `그만두기`(중복 임시저장 주의).
 3. `python3 scripts/lint_post.py <P>/final.md --stage final --json > <P>/lint.json` — exit 1이면 FAIL id를 보고하고 끝낸다(텍스트 수정이 필요하면 이 명령이 아니라 전체 워크플로우로).
 4. Step 5의 dry-run → 실제 임시저장(`--blog-id <blogId>`) → exit code 표대로 대응 → 성공 기록(`## 업로드` + variation-log 1줄) → 종료 보고.

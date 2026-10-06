@@ -91,7 +91,8 @@ class PersistTest(unittest.TestCase):
     def test_partial_success_persists_after_exception_on_slot2(self):
         fake_google = types.ModuleType("google")
         fake_genai = types.ModuleType("google.genai")
-        fake_genai.Client = lambda api_key: object()
+        fake_genai.Client = lambda api_key, http_options=None: object()
+        fake_genai.types = types.SimpleNamespace(HttpOptions=lambda **kw: kw)
         fake_google.genai = fake_genai
         with tempfile.TemporaryDirectory() as d:
             img = os.path.join(d, "posts", "001", "images")
@@ -127,6 +128,54 @@ class PersistTest(unittest.TestCase):
             self.assertNotIn("03-exam.png", text)
             self.assertTrue(os.path.isfile(os.path.join(img, "01-cover.png")))
             self.assertEqual([n for n in os.listdir(img) if n.endswith(".tmp")], [])
+
+
+class QuotaTest(unittest.TestCase):
+    def test_429_stops_remaining_slots_without_retry(self):
+        class APIError(Exception):
+            def __init__(self, code, message):
+                super().__init__(message)
+                self.code, self.message = code, message
+
+        calls, seen_opts = [], {}
+
+        class FakeClient:
+            def __init__(self, api_key, http_options=None):
+                seen_opts["http_options"] = http_options
+                self.interactions = self
+
+            def create(self, **kw):
+                calls.append(kw)
+                raise APIError(429, "RESOURCE_EXHAUSTED")
+
+        fake_google = types.ModuleType("google")
+        fake_genai = types.ModuleType("google.genai")
+        fake_genai.Client = FakeClient
+        fake_genai.types = types.SimpleNamespace(HttpOptions=lambda **kw: kw)
+        fake_genai.errors = types.SimpleNamespace(APIError=APIError)
+        fake_google.genai = fake_genai
+        with tempfile.TemporaryDirectory() as d:
+            img = os.path.join(d, "posts", "001", "images")
+            os.makedirs(img)
+            plan = os.path.join(img, "image-plan.md")
+            with open(plan, "w", encoding="utf-8") as f:
+                f.write(PLAN)
+            env = os.path.join(d, ".env")
+            with open(env, "w") as f:
+                f.write("GEMINI_API_KEY=k\n")
+            err = io.StringIO()
+            with mock.patch.dict(sys.modules, {"google": fake_google, "google.genai": fake_genai}), \
+                    mock.patch.object(gen_image.time, "sleep") as sleep, \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+                rc = gen_image.main([plan, "--env", env])
+            self.assertEqual(rc, 1)
+            self.assertEqual(len(calls), 1)          # 재시도 없음, 슬롯 03은 시도하지 않음
+            sleep.assert_not_called()
+            self.assertEqual(seen_opts["http_options"], {"timeout": gen_image.HTTP_TIMEOUT_MS})
+            self.assertIn("결제(Billing)", err.getvalue())
+            self.assertIn("01, 03", err.getvalue())
+            with open(plan, encoding="utf-8") as f:
+                self.assertEqual(f.read(), PLAN)     # 성공 슬롯이 없으면 image-plan.md 그대로
 
 
 if __name__ == "__main__":

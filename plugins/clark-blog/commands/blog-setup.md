@@ -14,11 +14,12 @@ allowed-tools: Bash, Read, Write, Glob, Skill
 
 ## 1. 작업 폴더 확정
 
-`$ARGUMENTS`가 있으면 그 폴더(없으면 만들고)로, 없으면 현재 폴더로 이동한다.
+`$ARGUMENTS`가 있으면 그 폴더(없으면 만들고)로, 없으면 현재 폴더로 이동한다. `~`·`~/…`는 홈 폴더로 펼친다(따옴표 때문에 셸이 펼치지 않으므로).
 **작업 폴더는 플러그인 저장소 밖이어야 한다.** 아래로 확인하고, 걸리면 거부한 뒤 다른 폴더를 요청하고 멈춘다.
 
 ```bash
 TARGET="$ARGUMENTS"; [ -z "$TARGET" ] && TARGET=.
+case "$TARGET" in "~") TARGET="$HOME";; "~/"*) TARGET="$HOME/${TARGET#\~/}";; esac
 # 거부 검사를 mkdir보다 먼저 한다 (거부된 경로가 만들어지지 않게). 존재하는 가장 가까운 상위 폴더에서 git 루트를 찾는다.
 CHK="$TARGET"; while [ ! -d "$CHK" ] && [ "$CHK" != "/" ] && [ "$CHK" != "." ]; do CHK="$(dirname "$CHK")"; done
 ROOT="$(git -C "$CHK" rev-parse --show-toplevel 2>/dev/null)"
@@ -26,9 +27,12 @@ if [ -n "$ROOT" ] && { [ -d "$ROOT/.claude-plugin" ] || ls "$ROOT"/plugins/*/.cl
   echo "REFUSE: 플러그인 저장소 안입니다 ($ROOT)"
 else
   mkdir -p "$TARGET" && cd "$TARGET" || { echo "폴더를 만들거나 열 수 없습니다: $TARGET"; exit 1; }
-  echo "작업 폴더: $PWD"
+  TARGET="$PWD"   # 절대경로로 고정
+  echo "작업 폴더: $TARGET"
 fi
 ```
+
+출력된 `작업 폴더:` **절대경로**를 기억한다. Bash 호출마다 cwd가 처음으로 돌아갈 수 있으므로, 2·3단계 Bash 블록은 첫 줄 `cd "<그 절대경로>" || exit 1`로 시작한다(아래 블록의 `<작업 폴더 절대경로>` 자리에 그대로 넣는다).
 
 `REFUSE`가 나오면 "작업 폴더는 플러그인 저장소 밖(예: ~/clark-blog)이어야 합니다. 다른 폴더를 알려주세요."라고 안내하고 중단한다.
 
@@ -39,6 +43,7 @@ fi
 키 값은 절대 출력하지 않는다 (존재 여부만).
 
 ```bash
+cd "<작업 폴더 절대경로>" || exit 1
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 echo "--- uv ---"
 if command -v uv >/dev/null 2>&1; then echo "uv: OK ($(uv --version))"; else echo "uv: MISSING"; fi
@@ -62,7 +67,7 @@ if command -v naver-blog-cli >/dev/null 2>&1; then
   SESS=$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli check-session 2>&1)
   if echo "$SESS" | grep -q '세션 정상' && echo "$SESS" | grep -q '글쓰기 가능'; then echo "session: OK (blogId=$BLOG_ID)"
   elif echo "$SESS" | grep -q '확인 실패:'; then echo "session: LOGIN_NEEDED (blogId=$BLOG_ID) — $(echo "$SESS" | head -1) (로그인과 무관한 원인일 수 있음 — 예: Chromium 미설치)"
-else echo "session: LOGIN_NEEDED (blogId=$BLOG_ID) — $(echo "$SESS" | head -1)"; fi
+  else echo "session: LOGIN_NEEDED (blogId=$BLOG_ID) — $(echo "$SESS" | head -1)"; fi
 else echo "session: SKIPPED (naver-blog-cli 없음)"; fi
 echo "--- .env / knowledge ---"
 if [ -n "$GEMINI_API_KEY" ]; then echo "GEMINI_API_KEY: env에 있음"
@@ -73,17 +78,20 @@ else echo "GEMINI_API_KEY: MISSING"; fi
 
 ## 3. 작업 폴더 준비 (scaffold 복사)
 
-`${CLAUDE_PLUGIN_ROOT}/scaffold/` 를 현재 작업 폴더로 복사한다. `cp -n`은 기존 파일을 덮어쓰지 않으므로
-이랑이 고친 `knowledge/`가 보존된다. 정본은 작업 폴더의 `knowledge/`다.
+`${CLAUDE_PLUGIN_ROOT}/scaffold/` 를 작업 폴더로 복사한다. 규칙: **scripts는 매번 갱신, knowledge는 보존(스텁만 교체)**.
+`scripts/`는 플러그인 코드라 항상 최신본으로 덮어쓴다. `knowledge/`는 이랑이 고친 파일을 보존하고, 아직 `Task N에서 채움` 문구가 남은 스텁만 플러그인 초기값으로 바꾼다. 그 밖의 파일은 없을 때만 복사한다(`cp -n`). 정본은 작업 폴더의 `knowledge/`다.
 
 ```bash
+cd "<작업 폴더 절대경로>" || exit 1
 cp -rn "${CLAUDE_PLUGIN_ROOT}/scaffold/." . || true   # macOS cp -n은 건너뛴 파일이 있으면 exit 1 — 재실행 시 정상
+cp -R "${CLAUDE_PLUGIN_ROOT}/scaffold/scripts/." scripts/   # scripts는 항상 최신본
+for f in knowledge/*.md; do grep -q 'Task [0-9]*에서 채움' "$f" && cp "${CLAUDE_PLUGIN_ROOT}/scaffold/knowledge/$(basename "$f")" "$f" && echo "스텁 교체: $f"; done
 [ -f .env ] || { cp .env.example .env && echo ".env 새로 생성 (키를 채워야 함)"; }
 [ -f .env ] && echo ".env: 있음"
 [ -f knowledge/design-system.md ] && echo "design-system.md: OK" || echo "design-system.md: MISSING (경고만)"
 ```
 
-복사 후 새로 생긴 파일과 이미 있어서 건너뛴 파일을 구분해 한 줄로 보고한다.
+복사 후 새로 생긴 파일, 이미 있어서 건너뛴 파일, 갱신한 `scripts/`·교체한 스텁을 구분해 한 줄로 보고한다.
 `.env`는 방금 만들었다면 키를 채우라고 안내한다. `.env`는 이미 `.gitignore`에 포함되어 있어야 하며 채팅에 키를 붙여넣지 않게 한다.
 
 ## 4. 진단 결과 표와 조치
@@ -116,10 +124,10 @@ cp -rn "${CLAUDE_PLUGIN_ROOT}/scaffold/." . || true   # macOS cp -n은 건너뛴
   ```bash
   uv tool install git+https://github.com/spegas/naver-blog-cli
   ```
-- 네이버 로그인 (**사람이 직접, 1회**). 로그인 스크립트는 설치본에 없으므로 저장소를 clone해서 쓴다. 반드시 **작업 폴더에서** 실행한다. 세션 파일이 `<작업 폴더>/playwright-state/storage_state.json`에 저장된다.
+- 네이버 로그인 (**사람이 직접, 1회**). 로그인 스크립트는 설치본에 없으므로 저장소를 clone해서 쓴다. Claude 입력창이 아니라 **터미널에서**, 반드시 **작업 폴더에서** 실행한다. 세션 파일이 `<작업 폴더>/playwright-state/storage_state.json`에 저장된다.
   ```bash
   [ -d ~/naver-blog-cli ] || git clone https://github.com/spegas/naver-blog-cli ~/naver-blog-cli
-  cd <작업 폴더>
+  cd "<작업 폴더 절대경로>"
   NAVER_STATE="$PWD/playwright-state/storage_state.json" \
     "$(uv tool dir)/naver-blog-cli/bin/python" ~/naver-blog-cli/login_setup.py
   ```
@@ -135,6 +143,6 @@ cp -rn "${CLAUDE_PLUGIN_ROOT}/scaffold/." . || true   # macOS cp -n은 건너뛴
 
 ## 5. 다음 단계 안내
 
-- `knowledge/design-system.md`가 없으면: "scaffold 초기값에 포함될 예정입니다. 없으면 `blog-design-system` 스킬로 생성을 요청하세요. (글 검사 `lint_post.py`는 이 파일이 없어도 경고만 냅니다.)"
+- `knowledge/design-system.md`가 없으면: "design-system.md가 없습니다. `blog-design-system` 스킬로 생성을 요청하세요. (글 검사 `lint_post.py`는 이 파일이 없어도 경고만 냅니다.)"
 - 누락·로그인 필요 항목이 남아 있으면 해결 후 이 커맨드를 다시 실행하라고 안내한다.
 - 모두 갖춰졌으면: "준비가 끝났습니다. `/clark-blog:blog-run`으로 글 작성을 시작하세요."
