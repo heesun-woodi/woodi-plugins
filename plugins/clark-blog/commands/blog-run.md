@@ -24,7 +24,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Skill, Agent, SendMessage, A
 - **서브에이전트는 사용자에게 묻지 않는다.** 질문은 반환 메시지·`factcheck.md`·`seo.md`의 `## 질문`(또는 "메인에 전달") 절로 돌아온다 → 메인이 AskUserQuestion으로 이랑에게 묻고, 답을 `gates.md`에 기록한 뒤 다음 발주·재개 메시지에 원문으로 넣는다.
 - **재개는 `name` + `SendMessage`**: writer는 `blog-writer-<NNN>` 하나를 B부터 끝까지 재개한다(새 Agent로 다시 만들지 않는다). fact-checker는 회차마다 새 Agent `blog-fact-checker-<NNN>-r<k>`(r1, r2).
   `SendMessage`가 실패하면(세션이 바뀌어 에이전트가 없음) 같은 `subagent_type`·같은 `name`으로 새 Agent를 발주하고 B 입력 경로 전부 + B' 메시지를 함께 넣는다(디스패치 1회로 센다).
-- **디스패치 예산**: 글 1편당 기본 3회(B·C·B'), 재작업 포함 **최대 7회**(B·C·B'·lint 재개 B'·게이트 2 B'·C r2·r2 반영 B'). Agent 발주와 SendMessage 재개를 모두 1회로 센다. 다음 디스패치가 8회째면 **하지 말고 멈춰서** 이랑에게 보고한다(지금까지 횟수·남은 문제·글 폴더 경로). 매 디스패치 뒤 `디스패치 n/7`을 한 줄로 알린다.
+- **디스패치 예산**: 글 1편당 기본 3회(B·C·B'), 재작업 포함 **최대 7회**(B·C·B'·lint 재개 B'·게이트 2 B'·C r2·r2 반영 B'). Agent 발주와 SendMessage 재개를 모두 1회로 센다. 다음 디스패치가 8회째면 **하지 말고 멈춰서** 이랑에게 보고한다(지금까지 횟수·남은 문제·글 폴더 경로). Step 4 lint 텍스트 FAIL → B' 재개(및 Step 5 exit 10·11의 B' 재개)도 1회로 센다 — 최악 경로에서 이것이 8회째면 하지 않고 중단·보고. 매 디스패치 뒤 `디스패치 n/7`을 한 줄로 알린다.
 - **완료 확인**: 에이전트가 끝났다고 해도 출력 파일이 실제로 있는지 `ls`로 확인한다. 없으면 같은 에이전트를 1회 재개(예산 포함)하고, 그래도 없으면 멈추고 보고한다.
 - **gates.md 절은 4개로 고정**: `## 선택` · `## 초안피드백` · `## 이미지승인` · `## 업로드`. 다른 절을 만들지 않는다. 절 단위로 **append**하고, 같은 절이 둘 이상이면 **마지막 것이 유효**하다. 각 절 첫 줄은 `- 일시: YYYY-MM-DD HH:MM`.
 - **에러 시 중단·보고**: 예상 밖 오류(스크립트 exit 2, 파일 없음, 요약 줄 없음 등)는 우회하지 말고 멈춘 뒤 단계·명령·출력 첫 줄·글 폴더를 보고한다. 같은 오류 재시도는 한 번까지.
@@ -285,7 +285,7 @@ lint.json 형식: `{"stage", "pass", "checks": [{"id","value","rule","result","d
 
 **Skill 도구로** `clark-blog:blog-image-director`를 실행해 메인이 직접 수행한다(입력 `work/posts/<NNN-slug>/draft-v2.md`·`gates.md`). 산출: `P/images/image-plan.md`(열: 슬롯 | 위치(소제목) | 목적 | 유형 | 프롬프트(ai) / 후보 파일(photo) | 캡션(alt) | 파일 | 검수), `P/images/NN-<slug>.png`(ai 슬롯), 게이트 3용 요약.
 
-- **키 없음 모드**(Step 0 `GEMINI_API_KEY: MISSING`) 또는 요약에 **"Gate: GEMINI 키 대기"**가 있으면: 생성은 하지 않는다(스킬 1~5단계로 image-plan.md를 쓰고 photo 후보만 고른다). image-plan.md에서 `유형`이 `ai`인 행의 `파일`을 `보류`, `검수`를 `키 없음`으로 적는다. 이랑이 그 자리에서 키를 채웠다고 하면 `uv run --with google-genai --with pillow scripts/gen_image.py work/posts/<NNN-slug>/images/image-plan.md`를 실행해 보류를 풀어도 된다.
+- **키 없음 모드**(Step 0 `GEMINI_API_KEY: MISSING`) 또는 요약에 **"Gate: GEMINI 키 대기"**가 있으면: 생성은 하지 않는다(스킬 1~5단계로 image-plan.md를 쓰고 photo 후보만 고른다). image-plan.md에서 `유형`이 `ai`인 행의 `파일`을 `보류`, `검수`를 `키 없음`으로 적는다. 이랑이 그 자리에서 키를 채웠다고 하면 `uv run --with google-genai --with pillow scripts/gen_image.py work/posts/<NNN-slug>/images/image-plan.md`를 실행해 보류를 풀어도 된다. 그 뒤 생성된 각 이미지를 Read로 열어 blog-image-director 스킬 7단계 기준(글자·얼굴·중복·캡션·로고)으로 검수하고 image-plan.md `검수` 열을 갱신한 다음 게이트 3으로 간다. 이 생성도 스킬의 한도(ai 슬롯 수 × 3)에 포함한다.
 - `파일` 경로 규칙: ai = **글 폴더 기준** `images/NN-<slug>.png`, photo = **작업 폴더 기준** `photos/<파일>`.
 
 ## ● 게이트 3 — 이미지 승인 (슬롯별)
@@ -441,7 +441,7 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage final --json
 - 임시저장 제목 · 카테고리 · 태그 · 이미지 수(스크립트 출력값)
 - 스크립트 출력에 `경고: 카테고리/태그 설정 실패`가 있었으면 반드시: "임시저장은 됐지만 카테고리·태그가 빠졌을 수 있습니다. 임시저장 글에서 직접 확인해 주세요."
 - 안내 문구: **"네이버 앱/웹 → 글쓰기 → 임시저장 글 → 미리보기 → 발행"** (발행은 이랑이 직접)
-- 보류 슬롯이 있으면: "AI 이미지 보류 n개 — 키 설정 후 Step 3 재실행"(`.env`에 키를 넣고 이 글로 `/clark-blog:blog-run`의 Step 3부터 다시; 보류 슬롯은 이번 final.md에서 빠져 있다)
+- 보류 슬롯이 있으면(키 없음 모드): "AI 이미지 보류 n개 — 키 설정 후 Step 3 재실행". 그리고 **이번 final.md(임시저장본)는 계획보다 이미지가 n장 적다**는 것, `.env`에 키를 넣은 뒤 이 글의 Step 3(이미지)부터 다시 돌리면 보류 슬롯을 채운 final.md를 새로 만들 수 있다는 것을 함께 알린다.
 - 세션 없음 모드로 업로드를 미뤘으면: "임시저장은 아직 안 됐습니다. 로그인 후 `/clark-blog:blog-run resume <NNN>`" (위 임시저장 항목·발행 안내 대신)
 - 글 폴더 경로, 디스패치 `n/7`, 게이트 1에서 남긴 번호가 있으면 "`/clark-blog:blog-run <번호>`로 이어서"
 
@@ -451,10 +451,11 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage final --json
 
 인자가 `resume NNN`이면 이 절만 수행한다. 글 폴더 `P=$(ls -d work/posts/NNN-* | head -1)`에 `final.md`가 있어야 한다(없으면 "final.md가 없습니다 — `/clark-blog:blog-run`으로 Step 4까지 먼저 진행하세요"라고 답하고 끝). 디스패치는 하지 않는다.
 
-1. Step 0의 preflight Bash를 그대로 실행해 `blogId`와 `session:`을 얻는다. `session: OK`가 아니면 로그인 안내 후 끝낸다.
+1. Step 0의 preflight Bash를 그대로 실행하고 Step 0 표대로 판정한다: `work-folder: MISSING`·`skill: MISSING`이면 그 표의 안내 후 끝낸다. `blogId`를 기억한다. `session: OK`가 아니면 로그인 안내 후 끝낸다(`GEMINI_API_KEY`·`design-system.md`는 업로드와 무관 — 무시).
 2. `gates.md`에 `## 업로드`가 이미 있으면 "이미 임시저장했습니다(<일시>)"라고 알리고, 다시 올릴지 AskUserQuestion `다시 올리기` / `그만두기`(중복 임시저장 주의).
 3. `python3 scripts/lint_post.py <P>/final.md --stage final --json > <P>/lint.json` — exit 1이면 FAIL id를 보고하고 끝낸다(텍스트 수정이 필요하면 이 명령이 아니라 전체 워크플로우로).
 4. Step 5의 dry-run → 실제 임시저장(`--blog-id <blogId>`) → exit code 표대로 대응 → 성공 기록(`## 업로드` + variation-log 1줄) → 종료 보고.
+   단 `resume`에서는 **디스패치하지 않는다**: exit 10(lint 실패)·11(이중 검사 실패)이 나오면 B' 재개(디스패치)가 필요하므로 출력된 실패 항목을 보고하고 "`/clark-blog:blog-run`(전체 워크플로우)으로 고친 뒤 다시 `resume`"이라고 안내하고 끝낸다. exit 12도 Step 4가 필요하므로 같은 방식으로 안내하고 끝낸다.
 
 ---
 
