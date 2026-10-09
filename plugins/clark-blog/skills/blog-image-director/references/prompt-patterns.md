@@ -15,7 +15,7 @@
 
 | # | 장면 유형 | 쓰는 슬롯(목적) | 패턴 |
 |---|---|---|---|
-| 1 | 교육장 코스 주행 | 표지, 절차 장면 | `a counterbalance forklift slowly driving through an S-shaped course marked with cones and white lines on an outdoor concrete training yard, {time}, {weather}, {angle}` |
+| 1 | 교육장 코스 주행 | 표지(`00` 배경), 절차 장면 | `a counterbalance forklift slowly driving through an S-shaped course marked with cones and white lines on an outdoor concrete training yard, {time}, {weather}, {angle}` |
 | 2 | 실기시험 장면(멀리) | 시험 절 요약 | `a trainee operating a forklift on a practice course seen from far away, an examiner standing in the distance seen from behind holding a clipboard, {time}, {angle}` (심사관·응시자 모두 뒷모습·원거리, 클립보드에 글자 없음) |
 | 3 | 전동 입식/좌식 지게차 장비 | 장비 소개, 과정 비교 | `an electric {stand-up reach / sit-down} forklift parked in a clean indoor warehouse aisle with tall racks, {angle}, {time}` (차체 로고·모델명 없음) |
 | 4 | 팔레트 적재·하역 작업 | 중간 작업 장면(⑤ 최소 1장) | `forklift forks lifting a wrapped pallet onto a warehouse rack, operator seen from behind, {angle}, {time}` / `unloading pallets from a truck bed at a loading dock, {weather}` |
@@ -31,14 +31,20 @@
 
 ## 금지
 
-- 글자·숫자 렌더링(간판·현수막·자막·차체 문구·번호판·서류 내용) — 글자는 본문과 캡션으로.
+- 글자·숫자 렌더링(간판·현수막·자막·차체 문구·번호판·서류 내용) — 글자는 본문으로.
 - 얼굴 클로즈업, 정면 인물 — 뒷모습·원거리·장갑 낀 손·장비 중심.
 - 브랜드 로고·제조사 이름(클라크 포함)·실제 번호판.
 - 실존 장소·학원 외관 재현, "시험장" 표지(금칙어 규칙과 같은 이유).
-- 홍보 슬롯(학원 소개·CTA·`type=홍보` 글)에는 AI 이미지를 쓰지 않는다 → photo.
+- 홍보 슬롯(학원 소개(실사진)·`type=홍보` 글)에는 AI 이미지를 쓰지 않는다 → photo.
 
-## 캡션 규칙
+## 표지용 배경 패턴 (`00` cover 행)
 
-- 이미지마다 한 줄(무엇을 보여주는지). 글의 핵심 키워드는 **캡션 전체에서 1회**만, 자연스럽게.
-- "이미지는 AI 생성" 표기 여부는 `knowledge/design-system.md` ⑤를 따른다(⑤에 규정이 없으면 표기하지 않고, 이랑 피드백으로 정한다).
-- 캡션에 수치·일정·법령을 새로 넣지 않는다(본문에 출처가 있는 사실만).
+- 패턴 1·3·4 중에서 고른다. 프롬프트는 **글자 없는 배경 장면**만 쓴다(글자·로고·번호판 금지는 그대로). 제목·배지·전화번호는 `scripts/make_cover.py`가 위에 합성한다.
+- 표지는 1:1 중앙 크롭으로 쓰이므로 **피사체를 화면 가운데에** 두는 변주 문구를 넣는다. 예: `..., subject centered in the frame, empty space above and below for text overlay` / `forklift in the middle of the frame, symmetrical composition`.
+- 배경 파일은 `images/00-bg.png`에 저장되고 합성 결과가 `images/00-cover.png`다. 배경을 실사진으로 대체하려면 make_cover.py `--bg photos/<파일>`.
+
+## 캡션(alt) 규칙 — 내부 메모
+
+- 캡션은 내부 메모용이며 본문에 노출되지 않는다(업로드본은 캡션 없음). 한 줄로 무엇을 보여주는지만 적는다.
+- "이미지는 AI 생성" 표기 여부는 `knowledge/design-system.md` ⑤를 따른다(규정이 없으면 표기하지 않는다).
+- 캡션에 수치·일정·법령을 새로 넣지 않는다.

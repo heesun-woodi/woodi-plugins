@@ -23,6 +23,38 @@ PLAN = """# 이미지 계획 — posts/001-test
 PATTERNS = os.path.join(HERE, "..", "..", "..", "skills", "blog-image-director", "references", "prompt-patterns.md")
 
 
+COVER_PLAN = """| 슬롯 | 위치 | 목적 | 유형 | 프롬프트 | 캡션(alt) | 파일 | 검수 |
+|---|---|---|---|---|---|---|---|
+| 00 | 표지(대표) | 표지 | cover | empty yard at dawn | 제목: 지게차 | images/00-cover.png | |
+| 01 | ## 절차 | 절차 | ai | forklift | 절차 | | |
+"""
+
+
+class CoverRowTest(unittest.TestCase):
+    def test_cover_row_targets_bg_and_keeps_file_cell(self):
+        _, rows = gen_image.parse_plan(COVER_PLAN)
+        sel = gen_image.select_ai_rows(rows)
+        self.assertEqual([r["slot"] for r in sel], ["00", "01"])
+        self.assertEqual(gen_image.target_name(sel[0]), "00-bg.png")
+        only = gen_image.select_ai_rows(rows, gen_image.parse_only("00"))
+        self.assertEqual([r["slot"] for r in only], ["00"])
+
+    def test_dry_run_shows_cover(self):
+        with tempfile.TemporaryDirectory() as d:
+            plan = os.path.join(d, "images", "image-plan.md")
+            os.makedirs(os.path.dirname(plan))
+            with open(plan, "w", encoding="utf-8") as f:
+                f.write(COVER_PLAN)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = gen_image.main([plan, "--dry-run", "--only", "00"])
+            self.assertEqual(code, 0)
+            self.assertIn("images/00-bg.png", buf.getvalue())
+            self.assertIn("cover", buf.getvalue())
+            with open(plan, encoding="utf-8") as f:
+                self.assertEqual(f.read(), COVER_PLAN)
+
+
 class GenImagePlanTest(unittest.TestCase):
     def test_parse_splits_ai_and_photo_and_only_filter(self):
         idx, rows = gen_image.parse_plan(PLAN)

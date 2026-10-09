@@ -1,6 +1,6 @@
 ---
 name: blog-image-director
-description: Use when a Clark academy blog draft needs its image slots planned and filled — e.g. "이미지 뽑아줘", "사진 어디 넣을까", "이미지 생성", "이미지 계획 짜줘", "슬롯에 사진 넣어줘", "blog-image-director", "blog-run 이미지 단계", "blog-run Step 3". Reads the `![슬롯: …]()` slots in posts/NNN-slug/draft-v2.md, decides per slot whether it gets an AI image (informational scenes) or a real academy photo (promo/CTA), writes images/image-plan.md, runs scripts/gen_image.py (Gemini) for the ai slots, opens and checks each generated image, and returns a gate-3 summary. Do NOT use for writing or revising the post text (blog-draft-writer), fact checking (blog-fact-check), SEO scoring (blog-naver-seo), or uploading to Naver (blog-naver-upload).
+description: Use when a Clark academy blog draft needs its image slots planned and filled — e.g. "이미지 뽑아줘", "사진 어디 넣을까", "이미지 생성", "이미지 계획 짜줘", "슬롯에 사진 넣어줘", "blog-image-director", "blog-run 이미지 단계", "blog-run Step 3". Reads the `![슬롯: …]()` slots in posts/NNN-slug/draft-v2.md, decides per slot whether it gets an AI image (informational scenes) or a real academy photo (promo/academy intro), writes images/image-plan.md, runs scripts/gen_image.py (Gemini) for the ai slots, opens and checks each generated image, and returns a gate-3 summary. Do NOT use for writing or revising the post text (blog-draft-writer), fact checking (blog-fact-check), SEO scoring (blog-naver-seo), or uploading to Naver (blog-naver-upload).
 ---
 
 # 블로그 이미지 디렉터
@@ -25,7 +25,7 @@ mkdir -p $P/images
 ls photos/ ; cat photos/README.md 2>/dev/null
 ```
 
-`draft-v2.md`가 없으면 "B' 단계(draft-v2.md)가 끝나지 않았습니다"라고 보고하고 중단한다. `design-system.md` ⑤를 읽어 둔다(텍스트 렌더링 금지·얼굴 클로즈업 금지·정보성=AI 허용/홍보성=실사진만·재사용 금지·캡션 규칙·"AI 생성" 표기 규정 유무).
+`draft-v2.md`가 없으면 "B' 단계(draft-v2.md)가 끝나지 않았습니다"라고 보고하고 중단한다. `design-system.md` ⑤를 읽어 둔다(텍스트 렌더링 금지·얼굴 클로즈업 금지·정보성=AI 허용/홍보성=실사진만·재사용 금지·"AI 생성" 표기 규정 유무).
 
 ## 1. 슬롯 추출 (등장 순서 = 슬롯 번호)
 
@@ -34,17 +34,18 @@ grep -n '!\[슬롯:' $P/draft-v2.md
 ```
 
 위에서부터 `01, 02, …`로 번호를 붙인다. 이 번호가 image-plan.md `슬롯` 열, 파일명 `NN-`, 그리고 Step 4의 치환 순서가 된다.
-각 슬롯의 `위치`는 바로 위 `## 소제목`(제목 바로 아래 첫 슬롯은 `제목 아래(표지)`).
-슬롯 수가 ③·④ 기준(커버 1 + 소제목마다 1, 하한 5)에 못 미쳐도 **초안을 고치지 않는다** — 요약에 "슬롯 부족 N개"로 적어 메인에 넘긴다.
+각 슬롯의 `위치`는 그 슬롯이 속한 절 끝(다음 소제목 직전)의 `## 소제목`으로 적는다.
+**`00` 표지는 draft-v2.md 슬롯이 아니다** — 이 스킬이 image-plan.md 맨 윗줄에 직접 추가한다(§5). 슬롯 매칭·확정 이미지 수 계산에서 `00`은 제외된다(메인과 `build_final.py`가 그렇게 처리).
+슬롯 수가 본문 슬롯 ≥ min_images(표지 제외), 절 끝 1~2장 기준에 못 미쳐도 **초안을 고치지 않는다** — 요약에 "슬롯 부족 N개"로 적어 메인에 넘긴다.
 
 ## 2. 슬롯 진단 — 목적과 유형
 
-슬롯마다 **목적**을 하나 정한다: `표지` / `소제목 요약` / `절차 장면` / `장비` / `작업 장면` / `시험` / `서류` / `안전` / `학원 CTA`.
-(목적 단어가 파일명 slug가 된다: 표지→cover, 시험→exam, 장비→equipment, 작업→work, 안전→safety, 서류→documents, 학원/CTA→academy …)
+슬롯마다 **목적**을 하나 정한다: `표지` / `소제목 요약` / `절차 장면` / `장비` / `작업 장면` / `시험` / `서류` / `안전` / `학원 소개(실사진)`.
+(목적 단어가 파일명 slug가 된다(`00` 표지는 고정 `00-cover.png`): 표지→cover, 시험→exam, 장비→equipment, 작업→work, 안전→safety, 서류→documents, 학원 소개→academy …)
 
 **유형 판정 규칙(위에서부터 먼저 맞는 것):**
 1. 글 유형이 `홍보`(gates.md `## 선택`) → **모든 슬롯 photo**(⑤ "홍보성 글 = 학원 실사진만").
-2. 학원 소개·CTA·수강 안내·교육장 실제 모습 슬롯 → **photo**.
+2. 학원 소개(실사진)·수강 안내·교육장 실제 모습 슬롯 → **photo**.
 3. `photos/`에 그 장면에 맞는 실사진이 있고 **이전 글에서 쓰지 않았다** → 정보성 장면이라도 **photo 우선**.
 4. 정보성 장면(코스 주행·시험·장비·적재/하역·절차·서류·안전) → **ai**.
 
@@ -54,12 +55,12 @@ grep -n '!\[슬롯:' $P/draft-v2.md
 grep -ho 'photos/[^ ,|)`]*' work/posts/*/images/image-plan.md 2>/dev/null | sort | uniq -c
 ```
 
-현재 글 폴더의 행은 빼고 본다. 이미 쓴 실사진은 후보에서 제외한다.
+현재 글 폴더의 행은 빼고 본다. 이미 쓴 실사진은 후보에서 제외한다. 단 `photos/학원소개.png`는 고정 자산이라 재사용 검사에서 제외한다.
 ⑤ "본문 중간 절에 지게차 작업 장면 최소 1장"을 만족하는지 확인한다(작업·주행·적재 장면이 중간 절 슬롯 중 1개 이상).
 
 ## 3. ai 슬롯 프롬프트 작성
 
-`references/prompt-patterns.md`의 장면 패턴(1~7)에서 고르고 `{time}`·`{angle}`·`{weather}`를 채운다. 원칙:
+`references/prompt-patterns.md`의 장면 패턴(1~7)에서 고르고(`00` 표지 배경은 패턴 1·3·4 중, "표지용 배경 패턴" 절 참고) `{time}`·`{angle}`·`{weather}`를 채운다. 원칙:
 - 표의 프롬프트 칸에는 **장면 설명만**(영어 1~2문장, `|` 금지). 공통 접두/접미는 `gen_image.py`가 붙인다 — 중복해 쓰지 않는다.
 - 같은 글 안에서 패턴·시간대·앵글이 겹치지 않게 변주한다.
 - 글자·숫자·로고·번호판·얼굴 정면이 생길 만한 소재(현수막, 게시판, 시험 결과지, 차량 번호판)를 장면에 넣지 않는다.
@@ -75,12 +76,18 @@ grep -ho 'photos/[^ ,|)`]*' work/posts/*/images/image-plan.md 2>/dev/null | sort
 # 이미지 계획 — posts/NNN-slug
 | 슬롯 | 위치(소제목) | 목적 | 유형 | 프롬프트(ai) / 후보 파일(photo) | 캡션(alt) | 파일 | 검수 |
 |---|---|---|---|---|---|---|---|
-| 01 | 제목 아래(표지) | 표지 | ai | a counterbalance forklift slowly driving through an S-shaped course … | 지게차운전기능사 실기 코스를 주행하는 지게차 | | |
-| 02 | ## 소제목1 | 학원 CTA | photo | photos/교육장-01.jpg, photos/교육장-02.jpg | 교육용 지게차가 줄지어 선 실습장 | (게이트 3에서 확정) | |
+| 00 | 표지(대표) | 표지 | cover | a counterbalance forklift slowly driving through an S-shaped course … (글자 없는 배경 장면) | 제목: <frontmatter title 그대로>; 줄바꿈: 줄1; 줄2[; 줄3] | images/00-cover.png | |
+| 01 | ## 소제목1 | 소제목 요약 | ai | a forklift lifting a wrapped pallet onto a rack … | 팔레트를 랙에 올리는 지게차 | | |
+| 02 | ## 소제목2 | 학원 소개(실사진) | photo | photos/교육장-01.jpg, photos/교육장-02.jpg | 교육용 지게차가 줄지어 선 실습장 | (게이트 3에서 확정) | |
 ```
 
+- **`00` 표지 행(형식 확정, 셀 안 `|` 금지)**: `| 00 | 표지(대표) | 표지 | cover | <글자 없는 배경 장면 프롬프트, 패턴 1·3·4 중> | 제목: <frontmatter title 그대로>; 줄바꿈: 줄1; 줄2[; 줄3] | images/00-cover.png | <검수> |`
+  - `제목:`은 게이트 2에서 확정된 draft-v2.md frontmatter `title`과 **글자 그대로** 같아야 한다. `build_final.py`가 대조해 다르면 "표지 재생성 필요"로 멈춘다.
+  - `줄바꿈:`은 줄당 12자 이내 2~3줄(`;`로 구분). make_cover.py `--title`에는 `줄1|줄2`로 넘긴다.
+  - `파일` 칸은 항상 `images/00-cover.png`(gen_image.py가 바꾸지 않는다). 배경은 `images/00-bg.png`에 따로 저장된다.
+
 - `유형` ∈ {ai, photo}. 칸 안에 `|`를 쓰지 않는다.
-- `캡션(alt)`: 한 줄, 무엇을 보여주는지. 글의 핵심 키워드(`keyword`)는 **캡션 전체에서 1회만**(⑤·prompt-patterns.md 캡션 규칙). "AI 생성" 표기는 ⑤에 규정이 있을 때만 따른다.
+- `캡션(alt)`: 한 줄, 무엇을 보여주는지. **내부 메모용이며 본문에 노출되지 않는다(업로드본은 캡션 없음).** "AI 생성" 표기는 ⑤에 규정이 있을 때만 따른다. (`00` 행은 예외로 제목·줄바꿈 지정 칸.)
 - `파일` 경로 규칙: ai = **글 폴더 기준** `images/NN-<slug>.png`(gen_image.py가 채움), photo = **작업 폴더 기준** `photos/<파일>`(게이트 3에서 확정 후 메인이 채움). Step 4는 `images/…`는 글 폴더, `photos/…`는 작업 폴더를 기준으로 절대경로를 만든다.
 - `검수` 열은 7단계에서 채운다(처음엔 비워 둔다). gen_image.py는 열 이름으로 찾으므로 열이 추가돼도 동작한다.
 
@@ -88,8 +95,13 @@ grep -ho 'photos/[^ ,|)`]*' work/posts/*/images/image-plan.md 2>/dev/null | sort
 
 ```bash
 python3 scripts/gen_image.py $P/images/image-plan.md --dry-run      # 먼저: 대상 슬롯·최종 프롬프트·파일명 확인(키 불필요)
-uv run --with google-genai --with pillow scripts/gen_image.py $P/images/image-plan.md
+uv run --with google-genai --with pillow scripts/gen_image.py $P/images/image-plan.md   # ai 행 + cover 행. cover는 images/00-bg.png에 배경 저장, `파일` 칸은 그대로
+uv run --with pillow scripts/make_cover.py --bg $P/images/00-bg.png --title "줄1|줄2" [--sub "<지역>·<지역> 중장비학원"] --out $P/images/00-cover.png
 ```
+
+- 표지 합성은 로컬 Pillow라 비용 0. 이 머신 python3에는 Pillow가 없으므로 **반드시 `uv run --with pillow`** 로 돌린다.
+- 배경을 실사진으로 쓰려면 `--bg photos/<파일>`(이 경우 gen_image는 `--only <ai 슬롯 번호(쉼표)>`로 ai 행만 생성한다 — 옵션 없이 실행하면 00 행도 생성됨).
+- 표지 재생성 요청이 줄바꿈·배지 문구만이면 make_cover.py만 다시(비용 0), 배경이면 `gen_image.py --only 00` 뒤 make_cover.py를 다시 돌린다.
 
 - 키 탐색 순서: `--env` → 작업 폴더(cwd) `.env` → image-plan.md 상위 폴더들의 `.env` → 환경변수. `GEMINI_API_KEY`가 실제로 든 첫 파일을 쓴다. 키가 없으면 스크립트가 exit 2 → 생성하지 말고 요약에 **"Gate: GEMINI 키 대기"** 로 적어 메인에 넘긴다.
 - 예상 비용(추정치): 장당 약 $0.04(`COST_PER_IMAGE_USD`, 검증된 단가 아님 — gemini-3-pro-image 2K 단가는 https://ai.google.dev/pricing 에서 확인). 재생성도 과금된다.
@@ -98,7 +110,7 @@ uv run --with google-genai --with pillow scripts/gen_image.py $P/images/image-pl
 
 ## 7. 생성 이미지 검수 — 반드시 열어서 본다
 
-ai 슬롯 이미지를 **Read 도구로 한 장씩 열어** 확인한다(파일 존재만으로 통과시키지 않는다):
+ai 슬롯 이미지와 `00-bg.png`·`00-cover.png`를 **Read 도구로 한 장씩 열어** 확인한다(파일 존재만으로 통과시키지 않는다):
 
 | 검사 | 불합격 예 |
 |---|---|
@@ -107,6 +119,10 @@ ai 슬롯 이미지를 **Read 도구로 한 장씩 열어** 확인한다(파일 
 | 같은 글 안 장면 중복 없음 | 두 슬롯이 같은 구도·같은 시간대 |
 | 장면이 캡션·소제목과 맞음 | 좌식 과정 설명에 입식 지게차 |
 | 로고·브랜드 없음 | 제조사 로고, 워터마크 |
+| (표지 `00`) 제목 글자 잘림·겹침 없음 | 00-cover.png에서 제목이 가장자리에 걸리거나 배지·전화번호와 겹침 |
+| (표지 `00`) 오타 없음 | 표지 제목이 frontmatter `title`과 다름 |
+| (표지 `00`) 배경(00-bg.png)에 글자·로고 없음 | 배경에 간판·가짜 글씨·로고 |
+| (표지 `00`) 중앙 안전 영역 안 | 피사체·제목이 1:1 크롭에서 잘림 |
 
 판정은 `검수` 열에 `PASS` 또는 `FAIL: <사유>`로 적는다. FAIL이면 프롬프트를 고쳐(원인 소재 제거·앵글 변경) `--only <슬롯>`으로 재생성 — **슬롯당 최대 2회**(§6 한도 규칙). 2회 뒤에도 FAIL이면 `FAIL(2회): <사유>`로 남기고 게이트 3에 올린다(photo 전환 후보로 제안).
 
@@ -115,7 +131,8 @@ ai 슬롯 이미지를 **Read 도구로 한 장씩 열어** 확인한다(파일 
 ```
 이미지 계획: work/posts/NNN-slug/images/image-plan.md
 | 슬롯 | 위치 | 유형 | 파일 / 후보 | 검수 |
-01 표지 ai images/01-cover.png PASS
+00 표지 cover images/00-cover.png <검수>
+01 ## … ai images/01-<slug>.png PASS
 02 ## … photo 후보: photos/교육장-01.jpg, photos/교육장-02.jpg (선택 필요)
 …
 특이사항: 슬롯 부족 N개 / 실사진 없음 슬롯 / FAIL(2회) 슬롯 / Gate: GEMINI 키 대기
@@ -123,12 +140,12 @@ ai 슬롯 이미지를 **Read 도구로 한 장씩 열어** 확인한다(파일 
 
 ## 9. 게이트 3 이후는 이 스킬 밖
 
-- 게이트 3 질문(교체·재생성·실사진 지정)과 `gates.md ## 이미지승인` 기록은 blog-run(메인)이 한다. 재생성 요청은 `gen_image.py --only NN` 재실행이며 **디스패치가 아니다**.
-- 승인 결과 반영(photo 슬롯 `파일` 확정, `draft-v2.md` 슬롯을 절대경로 `![캡션](/abs/…)`로 치환해 `final.md` 작성, `lint_post.py --stage final`)은 **blog-run Step 4(메인)** 가 image-plan.md를 기준으로 한다.
+- 게이트 3 질문(교체·재생성·실사진 지정)과 `gates.md ## 이미지승인` 기록은 blog-run(메인)이 한다. 재생성 요청은 `gen_image.py --only NN`(표지는 `--only 00` 뒤 make_cover.py, 줄바꿈·배지만이면 make_cover.py만) 재실행이며 **디스패치가 아니다**.
+- 승인 결과 반영(photo 슬롯 `파일` 확정, `scripts/build_final.py`가 final.md를 만든다, `lint_post.py --stage upload`)은 **blog-run Step 4(메인)** 가 image-plan.md를 기준으로 한다.
 
 ## 금칙
 
-- 홍보성 글·학원 CTA 슬롯에 AI 이미지 금지(⑤).
+- 홍보성 글·학원 소개(실사진) 슬롯에 AI 이미지 금지(⑤).
 - 이전 글에서 쓴 실사진·AI 이미지 재사용 금지.
 - 이미지에 글자·숫자·로고·번호판·얼굴 클로즈업 금지. "시험장" 표지·암시 장면 금지(금칙어 규칙).
 - 이 스킬에서 `draft-v2.md`·`final.md`를 고치지 않는다.

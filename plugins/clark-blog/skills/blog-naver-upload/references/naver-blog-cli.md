@@ -95,17 +95,17 @@ MCP 없이 네이버 블로그를 직접 조작하는 CLI. NAVER_BLOG_ID 환경�
 | `check-session` | (없음) | 세션 확인. **사용** |
 | `list-categories` | (없음) | 카테고리 목록. 하위는 `  - ` 들여쓰기. **사용**(setup에서 카테고리명 확인) |
 | `list-drafts` | (없음) | 임시저장 목록, 최신순, 각 줄 `제목  (날짜)`; 없으면 `임시저장된 글이 없습니다`. **사용**(업로드 확인) |
-| `create-draft` | `--title TITLE` `--file FILE` `--category CATEGORY` `--tags TAGS` | 마크다운 → 임시저장(발행 안 함). **사용** |
+| `create-draft` | `--title TITLE` `--file FILE` `--category CATEGORY` `--tags TAGS` | 마크다운 → 임시저장(발행 안 함). 대표이미지를 지정하지 않아 쓰지 않음 |
 | `publish-draft` | `--confirm`(필수) `--title TITLE` `--visibility {,public,neighbor,both_neighbor,private}` | 발행(되돌릴 수 없음). **사용 금지**(사람이 발행) |
 | `delete-draft` | `--confirm`(필수) `--title TITLE` `--index INDEX`(list-drafts 순번, 1이 최신) | 임시저장 삭제. 사용 금지 |
 | `delete-post` | `--confirm`(필수) `target`(글 URL 또는 logNo, 위치 인자) | 발행글 삭제. 사용 금지 |
 | `ai-draft` | `--text/--file`(택1) `--keywords` `--category` `--tags` `--title` `--model` `--length`(기본 1500) `--request` `--out` `--dry-run` `--search` `--search-query` `--verify` `--region` `--upload-anyway` | 로컬 Ollama LLM으로 원고 생성. 이 플러그인은 쓰지 않음(글은 blog-writer가 씀) |
 | `verify-draft` | `file`(위치 인자) `--region` `--model` | 네이버 검색+Ollama로 사실 확인. 쓰지 않음(팩트체크는 blog-fact-checker) |
-| `create-draft-from-folder` | `folder`(위치 인자) `--markdown-file`(기본 `post.md`) `--title` `--category` `--tags` | 글+이미지가 한 폴더일 때. 쓰지 않음(상대 이미지 경로를 폴더 기준으로 해석하는 점만 다름) |
+| `create-draft-from-folder` | `folder`(위치 인자) `--markdown-file`(기본 `post.md`) `--title` `--category` `--tags` | 글+이미지가 한 폴더일 때. **사용**(표지 대표이미지 지정 때문에 `create-draft` 대신 이것을 쓴다) |
 
 `NAVER_BLOG_READONLY=1`이면 `publish-draft`/`delete-draft`/`delete-post`가 **명령 목록에서 아예 빠진다**(argparse가 모름). 업로드 셸은 이 변수를 켜 두면 발행이 구조적으로 불가능해진다.
 
-### create-draft 세부 (이 플러그인이 호출하는 명령)
+### create-draft 세부 (참고 — 이 플러그인은 아래 from-folder를 쓴다)
 
 ```bash
 NAVER_BLOG_ID=pajuclark naver-blog-cli create-draft \
@@ -118,13 +118,38 @@ NAVER_BLOG_ID=pajuclark naver-blog-cli create-draft \
 - `--tags`는 쉼표 구분 문자열(공백은 trim), `--category`는 카테고리 이름(`"상위 > 하위"` 경로형도 허용).
 - 성공 출력(소스 기준): `임시저장 완료: <제목> [<메모들>]` / `임시저장 수 <전> -> <후>` / `확인 후 publish_draft 를 호출하세요.` 실패 출력 예: `작성 실패: …`, `임시저장 버튼을 못 찾음 …`, `임시저장이 안 된 것 같습니다 (임시저장 수 N -> N) …`, `설정 실패(…)`가 메모에 붙는 경우(카테고리·태그 실패) 있음. 셸은 `임시저장 완료`를 grep하고, 이어서 `list-drafts`로 제목이 보이는지 확인한다.
 - 브라우저 창이 뜬다(기본 `HEADLESS=false`, CAPTCHA 대비). 글 하나에 수 분 걸릴 수 있다.
+- **`create-draft`는 대표이미지를 지정하지 않는다**(`set_rep_image`를 호출하지 않음; 첫 이미지가 "대개" 기본 대표일 뿐). 그래서 이 플러그인은 `create-draft`를 쓰지 않고 아래 `create-draft-from-folder`를 쓴다.
+
+### create-draft-from-folder 세부 (이 플러그인이 호출하는 명령)
+
+`naver_upload.sh`는 임시 작업 폴더 `$WORK`에 `body.md`(frontmatter·H1·B안 주석을 뺀 본문)와 `images/00-cover.png`(글 폴더의 표지 복사본)를 만든 뒤 호출한다:
+
+```bash
+NAVER_BLOG_ID=pajuclark naver-blog-cli create-draft-from-folder "$WORK" \
+  --markdown-file body.md --title="$TITLE" --category="$CATEGORY" --tags="$TAGS"
+```
+
+- `find_cover(folder, markdown)`(`core.py`): `<폴더>/images/00-cover.{png,jpg,jpeg,gif}`가 있고 **본문(`body.md`)이 그 파일을 참조하지 않을 때만** 표지로 쓴다(`NAVER_COVER=0/off`로 끔, 다른 경로 지정 가능). 본문이 이미 참조하면 `None`이라 표지를 따로 넣지 않는다 → 업로드본 본문은 표지를 참조하지 않는다(lint `cover_file`).
+- 표지는 **본문 맨 앞에 캡션 없이** 넣고 `set_rep_image(0)`로 대표를 지정한다. 본문 이미지는 절대경로 그대로 받는다(`_abs_local`).
+- `preflight`(브라우저를 열기 전): 이미지·첨부 존재·10MB·유튜브 주소를 한 번에 검사한다. 걸리면 아무것도 하지 않고 `넣기 전에 걸린 것 (아무것도 하지 않았습니다):` + 줄별 `- 이미지 없음: …` / `- 10MB 초과: …`를 출력한다 → 셸은 exit 30.
+- 성공 출력: `임시저장 완료: <제목> [노트, …]`. 노트 문구:
+
+  | 노트 | 의미 |
+  |---|---|
+  | `0:표지` | 표지를 본문 맨 앞에 넣음. 실패하면 `0:표지 넣기 실패(<사유>)` — 표지만 빠지고 글은 계속 작성됨 |
+  | `대표 지정` / `대표 지정 실패` | `set_rep_image(0)` 결과. 실패해도 임시저장은 됨 → 셸은 `경고: 대표이미지 지정 실패 — …` (exit 0) |
+  | `<N>:장소(<고른 곳>)` | `:::place 검색어:::`가 검색 결과 첫 번째로 고른 장소(24자까지). 셸이 값을 로그·성공 출력에 `장소: …`로 남기고 `클라크`가 없으면 `경고: 장소 카드 확인 필요 — <값>` |
+  | `카테고리=…`, `태그 N개`, `설정 실패(…)` | 발행 레이어 설정 결과. `설정 실패`면 셸이 `경고: 카테고리/태그 설정 실패 …` |
+  | `<N>:이미지` 등 | 본문 블록별 기록 |
+
+- 실패 출력: `넣기 전에 걸린 것`(preflight) · `작성 실패: …` · `임시저장이 안 된 것 같습니다 …` · `…을 못 찾음`. 셸은 이 넷과 `임시저장 완료`가 없는 그 밖의 출력을 모두 exit 30으로 본다(출력 tail 5줄 포함).
 
 ## 이미지 경로 처리
 
 - 이미지는 **로컬 파일 경로만** 된다(URL 불가). 문법 `![캡션](경로)`. 개당 10MB 제한.
 - `create-draft --file`은 경로를 미리 절대경로로 바꿔 주지 않는다. 상대경로는 **CLI를 실행한 현재 디렉터리 기준**(편집기 단에서 `Path(...).resolve()`)으로 해석된다. 마크다운 파일 위치 기준이 아니다. → `final.md`는 이미지 경로를 절대경로로 치환해 두는 설계가 맞다.
 - `create-draft-from-folder`만 폴더 기준으로 상대경로를 절대경로로 바꾸고, 브라우저를 열기 전에 파일 존재·10MB를 한 번에 검사한다(문제가 있으면 아무것도 올리지 않음).
-- 대표 이미지: 글 폴더에 `images/00-cover.*`가 있으면(`NAVER_COVER`) 본문 맨 앞에 넣고 대표로 지정(`create-draft-from-folder` 경로). `NAVER_COVER=0`/`off`로 끈다.
+- 대표 이미지: 글 폴더에 `images/00-cover.*`가 있고 본문이 참조하지 않으면(`NAVER_COVER`) 본문 맨 앞에 넣고 대표로 지정(`create-draft-from-folder` 경로). `NAVER_COVER=0`/`off`로 끈다.
 
 ## 환경변수 (README 표)
 

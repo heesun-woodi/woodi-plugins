@@ -18,13 +18,14 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Skill, Agent, SendMessage, A
 ## 운영 원칙 (모든 단계에 적용)
 
 - **cwd = 작업 폴더**(`knowledge/`·`scripts/`·`work/`가 있는 폴더). 모든 경로는 작업 폴더 기준. 글 폴더는 `work/posts/<NNN-slug>/`(아래에서 `P`).
-- **메인만 하는 일**: 사용자 게이트 3개(AskUserQuestion), `P/gates.md` 기록, 주제 리서치(Step 1)·이미지(Step 3)·`final.md` 작성(Step 4)·업로드(Step 5), `work/variation-log.md` 기록.
+- **메인만 하는 일**: 사용자 게이트 3개(AskUserQuestion), `P/gates.md` 기록, 주제 리서치(Step 1)·이미지와 표지 합성(Step 3)·`final.md` 작성 = `scripts/build_final.py` 실행(Step 4)·업로드(Step 5), `work/variation-log.md` 기록.
+- **Pillow가 필요한 스크립트**(`make_cover.py`·`gen_image.py`)는 항상 `uv run --with pillow …`(gen_image는 `--with google-genai`도)로 실행한다. 시스템 `python3`에는 Pillow가 없다. `build_final.py`·`lint_post.py`는 표준 라이브러리만 써서 `python3`로 돌린다.
 - **서브에이전트는 2개뿐**이고 플러그인 네임스페이스로 부른다: `clark-blog:blog-writer`(B·B'), `clark-blog:blog-fact-checker`(C). model은 넘기지 않는다(에이전트 정의의 `opus`).
   발주 프롬프트에는 **경로만** 넣는다(내용을 붙여넣지 않는다). 절차 스킬은 `${CLAUDE_PLUGIN_ROOT}`가 펼쳐진 **절대경로** 그대로 넣는다.
 - **서브에이전트는 사용자에게 묻지 않는다.** 질문은 반환 메시지·`factcheck.md`·`seo.md`의 `## 질문`(또는 "메인에 전달") 절로 돌아온다 → 메인이 AskUserQuestion으로 이랑에게 묻고, 답을 `gates.md`에 기록한 뒤 다음 발주·재개 메시지에 원문으로 넣는다.
 - **재개는 `name` + `SendMessage`**: writer는 `blog-writer-<NNN>` 하나를 B부터 끝까지 재개한다(새 Agent로 다시 만들지 않는다). fact-checker는 회차마다 새 Agent `blog-fact-checker-<NNN>-r<k>`(r1, r2).
   `SendMessage`가 실패하면(세션이 바뀌어 에이전트가 없음) 같은 `subagent_type`·같은 `name`으로 새 Agent를 발주하고 B 입력 경로 전부 + B' 메시지를 함께 넣는다(디스패치 1회로 센다).
-- **디스패치 예산**: 글 1편당 기본 3회(B·C·B'), 재작업 포함 **최대 7회**(B·C·B'·lint 재개 B'·게이트 2 B'·C r2·r2 반영 B'). Agent 발주와 SendMessage 재개를 모두 1회로 센다. 다음 디스패치가 8회째면 **하지 말고 멈춰서** 이랑에게 보고한다(지금까지 횟수·남은 문제·글 폴더 경로). Step 4 lint 텍스트 FAIL → B' 재개(및 Step 5 exit 10·11의 B' 재개)도 1회로 센다 — 최악 경로에서 이것이 8회째면 하지 않고 중단·보고. 매 디스패치 뒤 `디스패치 n/7`을 한 줄로 알린다.
+- **디스패치 예산**: 글 1편당 기본 3회(B·C·B'), 재작업 포함 **최대 7회**(B·C·B'·lint 재개 B'·게이트 2 B'·C r2·r2 반영 B'). Agent 발주와 SendMessage 재개를 모두 1회로 센다. 다음 디스패치가 8회째면 **하지 말고 멈춰서** 이랑에게 보고한다(지금까지 횟수·남은 문제·글 폴더 경로). Step 4의 B' 재개(빌더 텍스트 사유 — 혼합 출처 괄호·📞 헤딩·frontmatter — 또는 upload lint 텍스트 FAIL, 및 Step 5 exit 10·11의 B' 재개)도 1회로 센다 — 최악 경로에서 이것이 8회째면 하지 않고 중단·보고. 매 디스패치 뒤 `디스패치 n/7`을 한 줄로 알린다.
 - **완료 확인**: 에이전트가 끝났다고 해도 출력 파일이 실제로 있는지 `ls`로 확인한다. 없으면 같은 에이전트를 1회 재개(예산 포함)하고, 그래도 없으면 멈추고 보고한다.
 - **gates.md 절은 4개로 고정**: `## 선택` · `## 초안피드백` · `## 이미지승인` · `## 업로드`. 다른 절을 만들지 않는다. 절 단위로 **append**하고, 같은 절이 둘 이상이면 **마지막 것이 유효**하다. 각 절 첫 줄은 `- 일시: YYYY-MM-DD HH:MM`.
 - **에러 시 중단·보고**: 예상 밖 오류(스크립트 exit 2, 파일 없음, 요약 줄 없음 등)는 우회하지 말고 멈춘 뒤 단계·명령·출력 첫 줄·글 폴더를 보고한다. 같은 오류 재시도는 한 번까지.
@@ -47,8 +48,12 @@ else echo "GEMINI_API_KEY: MISSING"; fi
 [ -f knowledge/design-system.md ] && echo "design-system.md: OK" || echo "design-system.md: MISSING"
 MINIMG=$(grep -o 'min_images=[0-9]*' knowledge/design-system.md 2>/dev/null | head -1 | cut -d= -f2)
 echo "min_images: ${MINIMG:-5}"
-echo "photos: $(find photos -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) 2>/dev/null | wc -l | tr -d ' ')"
-for s in fetch_posts.py fetch_post.py dedupe_check.py lint_post.py gen_image.py naver_upload.sh; do
+echo "photos: $(find photos -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) ! -name '학원소개.png' 2>/dev/null | wc -l | tr -d ' ')"
+[ -f photos/학원소개.png ] && echo "academy-image: OK" || echo "academy-image: MISSING"
+if [ -f "$HOME/Library/Fonts/Pretendard-ExtraBold.otf" ] || [ -f /System/Library/Fonts/AppleSDGothicNeo.ttc ]; then echo "font: OK"
+else echo "font: MISSING"; fi
+command -v uv >/dev/null 2>&1 && echo "uv: OK" || echo "uv: MISSING"
+for s in fetch_posts.py fetch_post.py dedupe_check.py lint_post.py gen_image.py make_cover.py build_final.py naver_upload.sh; do
   if [ ! -f "scripts/$s" ]; then echo "script: MISSING $s"
   elif ! cmp -s "scripts/$s" "${CLAUDE_PLUGIN_ROOT}/scaffold/scripts/$s"; then echo "script: OUTDATED $s"; fi
 done
@@ -73,9 +78,12 @@ done
 | 결과 | 조치 |
 |---|---|
 | `work-folder: MISSING` | "작업 폴더가 아닙니다. 먼저 `/clark-blog:blog-setup`을 실행하세요." 안내 후 **중단** |
-| `GEMINI_API_KEY: MISSING` | `/clark-blog:blog-setup`의 GEMINI 안내(https://aistudio.google.com/apikey → 작업 폴더 `.env`에 `GEMINI_API_KEY=…`, 채팅에 붙여넣지 않기)를 **경고로 보여 주고 계속**. 이 실행은 "키 없음 모드": Step 3에서 photo 슬롯만 처리하고 ai 슬롯은 `보류`. 이때 `photos:` < `min_images:`이면 실사진만으로 이미지 수를 못 채워 업로드까지 갈 수 없다 — B 발주 전에 묻는다(아래 [B] 참고) |
+| `GEMINI_API_KEY: MISSING` | `/clark-blog:blog-setup`의 GEMINI 안내(https://aistudio.google.com/apikey → 작업 폴더 `.env`에 `GEMINI_API_KEY=…`, 채팅에 붙여넣지 않기)를 **경고로 보여 주고 계속**. 이 실행은 "키 없음 모드": Step 3에서 photo 슬롯만 처리하고 ai 슬롯은 `보류`(표지 `00`은 `photos/` 실사진을 배경으로 `make_cover.py`만 돌려 만들 수 있다 — 비용 0). 이때 `photos:` < `min_images:`이면 실사진만으로 이미지 수를 못 채워 업로드까지 갈 수 없다 — B 발주 전에 묻는다(아래 [B] 참고) |
 | `design-system.md: MISSING` | "`blog-design-system` 스킬로 디자인 시스템을 먼저 만들어 주세요." 안내 후 **중단** |
 | `session: LOGIN_NEEDED` / `MISSING` | "업로드 전까지 로그인해 두세요"라고 **경고하고 계속**(Step 4까지 진행). 이 실행은 "세션 없음 모드": Step 5는 `--dry-run`만 하고 로그인 안내 후 끝낸다 |
+| `academy-image: MISSING` | "마무리 블록을 만들 수 없습니다 — `photos/학원소개.png`를 넣어 주세요." 안내 후 **중단**(`build_final.py`가 모든 글 끝에 붙이는 고정 자산. `photos:` 수에는 세지 않는다) |
+| `font: MISSING` | "표지(대표이미지)를 만들 수 없습니다 — Pretendard(ExtraBold·SemiBold)를 `~/Library/Fonts/`에 설치하거나 `/System/Library/Fonts/AppleSDGothicNeo.ttc`가 있는 macOS에서 실행하세요." 안내 후 **중단**(`make_cover.py`는 한글 폰트가 없으면 추측 렌더 없이 exit 2) |
+| `uv: MISSING` | "`uv`가 없어 표지 합성·이미지 생성(`uv run --with pillow …`)을 할 수 없습니다." + `/clark-blog:blog-setup`의 uv 설치 명령 안내 후 **중단** |
 | `skill: MISSING` | 플러그인 설치가 깨짐 — 경로를 보고하고 **중단** |
 | `script: MISSING` / `script: OUTDATED` | 작업 폴더 `scripts/`가 없거나 플러그인보다 오래됨 → "`/clark-blog:blog-setup <작업 폴더>`를 다시 실행하세요(scripts는 최신본으로 갱신, knowledge는 보존)." 재실행 안내 후 **중단** |
 
@@ -95,11 +103,38 @@ python3 scripts/fetch_posts.py --all <blogId> --out work/pajuclark-posts.json
 
 ## ● 게이트 1 — 주제 선택
 
-topics 표를 이랑에게 그대로 보여 준 뒤 **AskUserQuestion** 한 번으로 묻는다.
+**먼저 "이번 제목 지역"을 계산한다**(디자인 시스템 ⑦ `title_region` 로테이션). `work/variation-log.md`(7열, 마지막 열 `title_region`; 없을 수 있음)와 `knowledge/academy-profile.md`의 `수강생 지역` 행(순서 = 의정부·서울북부·양주·동두천·포천)을 읽어, 최근 4편의 `title_region`에 없는 첫 지역을 고른다(로그 없음 → 첫 지역). 인자 없이 실행하면 기본값만, 게이트 1 뒤 이랑이 고른 지역 2개를 인자로 주면 최종 "제목 지역"까지 출력한다:
+
+```bash
+python3 - <<'PY'        # 게이트 1 뒤에는 고른 지역 2개를 인자로: python3 - 의정부 양주 <<'PY'
+import os, sys
+sys.path.insert(0, "scripts"); import lint_post
+order = lint_post.load_regions("knowledge")                  # academy-profile.md `수강생 지역` 순서
+used = []                                                    # variation-log title_region 열(오래된 → 최근)
+if os.path.isfile("work/variation-log.md"):
+    for ln in open("work/variation-log.md", encoding="utf-8"):
+        cols = [c.strip() for c in ln.strip().strip("|").split("|")]
+        if len(cols) >= 7 and cols[0][:4].isdigit():
+            used.append(cols[6])
+recent = used[-4:]
+base = next((r for r in order if r not in recent), order[0])
+print(f"이번 제목 지역: {base} (최근 4편 title_region: {', '.join(recent) or '없음'})")
+picked = sys.argv[1:]
+if picked:
+    last = lambda r: max((i for i, u in enumerate(used) if u == r), default=-1)   # -1 = 안 쓰임
+    rank = lambda r: order.index(r) if r in order else len(order)
+    tr = base if base in picked else min(picked, key=lambda r: (last(r), rank(r)))  # 더 오래전에 쓰인 쪽, 동률이면 순서 앞쪽
+    print(f"제목 지역: {tr}")
+PY
+```
+
+topics 표와 "이번 제목 지역"을 이랑에게 보여 준 뒤 **AskUserQuestion** 한 번으로 묻는다.
 
 1. 번호 — 옵션은 추천 후보 최대 4개(`<번호>. <제목안>`), 그 밖의 번호는 기타 입력. 인자로 번호가 왔으면 그 번호를 첫 옵션으로.
 2. 유형 — `정보` / `홍보`(해당 행의 "추천 유형"을 첫 옵션으로).
-3. 지역 키워드 2개 — multiSelect: `의정부` / `양주` / `동두천` / `포천`(`서울북부`는 기타 입력). 정확히 2개가 아니면 이 질문만 다시 묻는다.
+3. 지역 키워드 2개 — multiSelect: 첫 옵션 = 이번 제목 지역(`… (이번 제목 지역)`), 나머지는 수강생 지역 순서대로 3개(빠진 지역은 기타 입력). 정확히 2개가 아니면 이 질문만 다시 묻는다. 질문 문구에 "이번 제목 지역을 넣으면 제목에 그 지역명이 들어갑니다(글마다 번갈아)"라고 함께 적는다.
+
+답을 받으면 위 스니펫을 고른 지역 2개를 인자로 다시 돌려 **제목 지역**을 확정한다(고른 2개에 이번 제목 지역이 있으면 그것, 없으면 2개 중 로그상 더 오래전에 쓰인 쪽 — 안 쓰인 지역 우선, 같으면 수강생 지역 순서 앞쪽).
 
 번호를 여러 개 고르면 이번 실행은 **한 편만** 진행한다 — 어느 번호부터 할지 한 번 더 묻고, 나머지는 종료 보고에 "`/clark-blog:blog-run <번호>`로 이어서" 안내한다(하루 1~2편 이내).
 
@@ -123,6 +158,7 @@ NNN=$(printf '%03d' $((10#${LAST:-0} + 1))); echo "NNN=$NNN"
 - 번호: 3
 - 유형: 정보
 - 지역 키워드: 의정부, 양주
+- 제목 지역: 의정부
 - 카테고리: 클라크중장비운전학원
 - topics 파일: work/topics/2026-10-07-topics.md
 - topics 행: | 3 | … (고른 행 원문 그대로) … |
@@ -243,15 +279,17 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/draft-v2.md --stage draft --j
   재개 뒤 같은 lint를 다시 돌려도 FAIL이면 멈추고 FAIL id·값을 보고한다.
 - exit 2 → 사용 오류. 중단·보고.
 
-lint.json 형식: `{"stage", "pass", "checks": [{"id","value","rule","result","detail"}], "stats"}`. draft 단계에서 보는 id: `forbidden`·`chars`·`h2_count`·`images`·`sources`·`placeholder_sources`·`variation`.
+lint.json 형식: `{"stage", "pass", "checks": [{"id","value","rule","result","detail"}], "stats"}`. draft 단계에서 보는 id: `forbidden`·`chars`·`h2_count`·`images`·`sources`·`placeholder_sources`·`tone`(해요체 종결 0건)·`source_format`(`(출처: URL)` 단독 괄호만)·`title_region`(frontmatter `variation.title_region`이 수강생 지역이고 title에 포함 — draft-v2.md는 B'에서 frontmatter가 생기므로 여기서 검사됨)·`variation`.
 
 ## ● 게이트 2 — 초안 피드백
 
-이랑에게 보여 준다: `P/draft-v2.md` 본문 전체, 제목 A안(frontmatter `title`)·B안(`<!-- 제목 B안: … -->`), factcheck 요약 줄과 `## 시점 표기 권고`, lint.json의 `pass`·chars·h2_count·images·sources, `seo.md`의 표(요약), writer가 보고한 "사실 문장 변경".
+이랑에게 보여 준다: `P/draft-v2.md` 본문 전체, 제목 A안(frontmatter `title`)·B안(`<!-- 제목 B안: … -->`)과 **제목 지역**(`gates.md ## 선택`의 `제목 지역:` = frontmatter `variation.title_region`), factcheck 요약 줄과 `## 시점 표기 권고`, lint.json의 `pass`·chars·h2_count·images·sources·tone·title_region, `seo.md`의 표(요약), writer가 보고한 "사실 문장 변경".
 
 **AskUserQuestion**:
-1. 제목 — `A안: <제목>` / `B안: <제목>`(기타 입력으로 직접 쓴 제목도 받는다. 핵심 키워드가 그대로 들어 있어야 한다고 함께 안내).
-2. 톤·길이·내용 — `그대로 진행` / `더 짧고 간결하게` / `더 친근한 말투로`(구체적 수정 요청은 기타 입력 원문 그대로 받는다).
+1. 제목 — `A안: <제목>` / `B안: <제목>`(기타 입력으로 직접 쓴 제목도 받는다. 핵심 키워드와 제목 지역 `<지역>`이 그대로 들어 있어야 한다고 함께 안내).
+2. 톤·길이·내용 — `그대로 진행` / `더 짧고 간결하게` / `문장을 더 짧게`(말투는 합니다체 고정 — 해요체로 바꾸는 요청은 받지 않는다. 구체적 수정 요청은 기타 입력 원문 그대로 받는다).
+
+**직접 입력 제목에 제목 지역명이 없으면** 1회만 되묻는다(AskUserQuestion): `지역명 넣어 다시 입력`(새 제목을 기타 입력으로 받는다) / `이대로 진행`. `이대로 진행`이면 그 제목 그대로 B' 재개를 보내고, 수정 루프 3의 lint에서 `title_region`이 FAIL하면 B' 재개 범위를 **"제목 지역 보완"**(채택 제목에 제목 지역명만 더함, 디스패치 +1)으로 처리한다. 다시 입력한 제목에도 지역명이 없으면 더 묻지 않고 `이대로 진행`과 같이 처리한다.
 
 `P/gates.md`에 append:
 
@@ -259,6 +297,7 @@ lint.json 형식: `{"stage", "pass", "checks": [{"id","value","rule","result","d
 ## 초안피드백
 - 일시: …
 - 제목: A안 | B안 | 직접 — <채택 제목 원문>
+- 제목 지역: <지역> — 포함 | 미포함(이대로 진행)
 - 톤: <답 원문 또는 "그대로">
 - 길이: <답 원문 또는 "그대로">
 - 수정 요청 원문: <기타 입력 원문, 없으면 "없음">
@@ -289,21 +328,23 @@ lint.json 형식: `{"stage", "pass", "checks": [{"id","value","rule","result","d
          출력: work/posts/<NNN-slug>/factcheck-r2.md
      ```
      C와 같은 명령으로 `factcheck-r2.md` 요약 줄을 읽는다. 질문이 있으면 질문 처리. FAIL+출처필요 ≥ 1 또는 `## 시점 표기 권고`가 `없음`이 아니면 B' 재개(디스패치 +1): `mode: B'` · `범위: 팩트체크 r2 반영` · `factcheck: work/posts/<NNN-slug>/factcheck-r2.md` · `질문 답:`(있으면). 0건·권고 없음이면 재개하지 않는다.
-  3. Step 2 lint를 다시 돌린다(FAIL이면 Step 2 규칙대로 B' 재개 1회).
+  3. Step 2 lint를 다시 돌린다(FAIL이면 Step 2 규칙대로 B' 재개 1회. 직접 제목 `이대로 진행`으로 `title_region`이 FAIL했으면 그 재개의 범위는 `제목 지역 보완 — 채택 제목에 <제목 지역>만 넣을 것` + 다른 FAIL id).
   4. 바뀐 부분(제목·수정 요청 반영 결과·r2 요약)을 보여 주고 AskUserQuestion `이미지 단계로 진행` / `여기서 중단`. 이 루프는 **한 번만** 돈다 — 추가 수정 요청이면 멈추고 보고한다(이랑이 직접 고치거나 다음 실행에서 이어 감).
 - 위 어느 디스패치든 8회째가 되면 하지 않고 멈춘다(예산, 최대 7회).
 
 ## Step 3. 이미지 (메인)
 
-**Skill 도구로** `clark-blog:blog-image-director`를 실행해 메인이 직접 수행한다(입력 `work/posts/<NNN-slug>/draft-v2.md`·`gates.md`). 산출: `P/images/image-plan.md`(열: 슬롯 | 위치(소제목) | 목적 | 유형 | 프롬프트(ai) / 후보 파일(photo) | 캡션(alt) | 파일 | 검수), `P/images/NN-<slug>.png`(ai 슬롯), 게이트 3용 요약.
+**Skill 도구로** `clark-blog:blog-image-director`를 실행해 메인이 직접 수행한다(입력 `work/posts/<NNN-slug>/draft-v2.md`·`gates.md`). 산출: `P/images/image-plan.md`(열: 슬롯 | 위치(소제목) | 목적 | 유형 | 프롬프트(ai) / 후보 파일(photo) | 캡션(alt) | 파일 | 검수), `P/images/NN-<slug>.png`(ai 슬롯), 표지 `P/images/00-bg.png`(배경)·`P/images/00-cover.png`(합성), 게이트 3용 요약.
 
-- **키 없음 모드**(Step 0 `GEMINI_API_KEY: MISSING`) 또는 요약에 **"Gate: GEMINI 키 대기"**가 있으면: 생성은 하지 않는다(스킬 1~5단계로 image-plan.md를 쓰고 photo 후보만 고른다). image-plan.md에서 `유형`이 `ai`인 행의 `파일`을 `보류`, `검수`를 `키 없음`으로 적는다. 이랑이 그 자리에서 키를 채웠다고 하면 `uv run --with google-genai --with pillow scripts/gen_image.py work/posts/<NNN-slug>/images/image-plan.md`를 실행해 보류를 풀어도 된다. 그 뒤 생성된 각 이미지를 Read로 열어 blog-image-director 스킬 7단계 기준(글자·얼굴·중복·캡션·로고)으로 검수하고 image-plan.md `검수` 열을 갱신한 다음 게이트 3으로 간다. 이 생성도 스킬의 한도(ai 슬롯 수 × 3)에 포함한다.
+- **표지 `00` 행**: 스킬이 image-plan.md 맨 윗줄에 `| 00 | 표지(대표) | 표지 | cover | <글자 없는 배경 프롬프트> | 제목: <frontmatter title 그대로>; 줄바꿈: 줄1; 줄2 | images/00-cover.png | <검수> |`를 넣고, 배경 `uv run --with google-genai --with pillow scripts/gen_image.py …`(cover 행 → `images/00-bg.png`) → 합성 `uv run --with pillow scripts/make_cover.py --bg <P>/images/00-bg.png --title "줄1|줄2" [--sub …] --out <P>/images/00-cover.png`까지 만든다. `00`은 draft-v2.md 슬롯이 아니다 — 슬롯 수 대조·확정 이미지 수에서 빠진다. `00` 행 `파일` 칸은 항상 `images/00-cover.png`이고, 표지가 만들어졌는지는 그 파일이 있는지로 본다.
+- **키 없음 모드**(Step 0 `GEMINI_API_KEY: MISSING`) 또는 요약에 **"Gate: GEMINI 키 대기"**가 있으면: 생성은 하지 않는다(스킬 1~5단계로 image-plan.md를 쓰고 photo 후보만 고른다). image-plan.md에서 `유형`이 `ai`인 행의 `파일`을 `보류`, `검수`를 `키 없음`으로 적는다. **표지**는 `photos/`의 실사진 1장을 배경으로 `make_cover.py`만 돌려 만들 수 있다(비용 0): `uv run --with pillow scripts/make_cover.py --bg photos/<파일> --title "줄1|줄2" [--sub …] --out <P>/images/00-cover.png` → `00` 행 `검수`를 `실사진 배경 photos/<파일>`로. 맞는 실사진이 없으면 `00` 행 `검수`를 `키 없음(표지 보류)`로 두고 `00-cover.png`는 만들지 않는다(아래 확정 확인에서 멈춘다). 이랑이 그 자리에서 키를 채웠다고 하면 `uv run --with google-genai --with pillow scripts/gen_image.py work/posts/<NNN-slug>/images/image-plan.md`를 실행해 보류를 풀어도 된다(cover 행 배경 `00-bg.png`도 함께 생성되므로 이어서 `make_cover.py`로 표지를 합성). 그 뒤 생성된 각 이미지를 Read로 열어 blog-image-director 스킬 7단계 기준(글자·얼굴·중복·캡션·로고)으로 검수하고 image-plan.md `검수` 열을 갱신한 다음 게이트 3으로 간다. 이 생성도 스킬의 한도(ai 슬롯 수 × 3)에 포함한다.
 - `파일` 경로 규칙: ai = **글 폴더 기준** `images/NN-<slug>.png`, photo = **작업 폴더 기준** `photos/<파일>`.
 
 ## ● 게이트 3 — 이미지 승인 (슬롯별)
 
-슬롯마다 위치·유형·캡션·파일(ai는 절대경로를 보여 줘 이랑이 열어 볼 수 있게, photo는 후보 목록)·검수 결과를 보여 준다.
+슬롯마다 위치·유형·캡션·파일(ai는 절대경로를 보여 줘 이랑이 열어 볼 수 있게, photo는 후보 목록)·검수 결과를 보여 준다. **첫 슬롯은 항상 `00 표지`**(`00-cover.png` 절대경로·표지 제목·줄바꿈·배경 출처).
 **AskUserQuestion**으로 슬롯별로 묻는다(한 호출에 최대 4슬롯, 넘으면 나눠서):
+- `00 표지`: `승인` / `재생성 — 줄바꿈·배지 문구`(바꿀 줄바꿈·`--sub` 문구는 기타 입력, `make_cover.py`만 다시 — 비용 0) / `재생성 — 배경`(바꿀 장면은 기타 입력, `gen_image.py --only 00` → `make_cover.py`; 키 없음 모드에서는 빼고 묻는다) / `실사진 배경으로`(파일명은 기타 입력, `make_cover.py --bg photos/<파일>`만)
 - ai 슬롯: `승인` / `재생성`(바꿀 점은 기타 입력) / `실사진으로 교체`(파일명은 기타 입력) / `제거`
 - photo 슬롯: 후보 파일 최대 3개(`photos/…`) / `제거`(다른 파일·AI 전환은 기타 입력)
 - `보류` 슬롯(키 없음): `보류 유지`(final.md에서 빠지고 나중에 Step 3 재실행) / `제거` / `실사진으로 교체`(파일명은 기타 입력)
@@ -313,7 +354,8 @@ lint.json 형식: `{"stage", "pass", "checks": [{"id","value","rule","result","d
 ```markdown
 ## 이미지승인
 - 일시: …
-- 01: 승인 — images/01-cover.png
+- 00: 승인 — images/00-cover.png (배경 images/00-bg.png)
+- 01: 승인 — images/01-course.png
 - 02: 후보 선택 — photos/교육장-01.jpg
 - 03: 재생성 — 요청: <원문>
 - 04: 제거
@@ -326,6 +368,14 @@ lint.json 형식: `{"stage", "pass", "checks": [{"id","value","rule","result","d
   uv run --with google-genai --with pillow scripts/gen_image.py work/posts/<NNN-slug>/images/image-plan.md --only NN
   ```
   새 이미지를 Read로 열어 검수하고(스킬 7단계 기준) `검수` 열을 갱신한 뒤 그 슬롯만 다시 묻는다. 슬롯당 재생성 최대 2회, 글 전체 생성 호출 ai 슬롯 수 × 3 이내(스킬 규칙). 넘으면 `제거`·실사진 중에서 고르게 한다.
+- 표지(`00`) 재생성·실사진 배경 → `00` 행 `캡션(alt)`의 `줄바꿈:`(또는 프롬프트)을 요청대로 고친 뒤
+  ```bash
+  # 배경을 바꿀 때만(키 있음): 배경 재생성 — 생성 한도에 포함
+  uv run --with google-genai --with pillow scripts/gen_image.py work/posts/<NNN-slug>/images/image-plan.md --only 00
+  # 합성(항상): --bg 는 images/00-bg.png 또는 photos/<파일>, --title 은 줄바꿈: 값을 | 로 이은 것
+  uv run --with pillow scripts/make_cover.py --bg <배경> --title "줄1|줄2" [--sub …] --out work/posts/<NNN-slug>/images/00-cover.png
+  ```
+  `00-cover.png`를 Read로 열어 검수(제목 잘림·오타·배경 글자 없음·안전 영역)하고 `검수` 열을 갱신한 뒤 표지만 다시 묻는다. 표지 재생성은 줄바꿈·배경 합쳐 최대 2회. `00` 행에는 `제거`가 없다(대표이미지는 필수).
 - 제거 → 그 행의 `파일`을 `제거`, `검수`를 `제거(이랑)`로 고친다. 보류 유지 → 그대로 둔다(`파일` = `보류`).
 
 모든 슬롯이 승인·확정·제거·보류 유지로 끝나면 마지막 결과로 `## 이미지승인`을 한 번 더 append한다(재질문이 있었던 경우).
@@ -334,71 +384,62 @@ lint.json 형식: `{"stage", "pass", "checks": [{"id","value","rule","result","d
 
 ```bash
 python3 - work/posts/<NNN-slug> <<'PY'
-import re, sys
+import os, re, sys
 sys.path.insert(0, "scripts"); from gen_image import parse_plan
 P = sys.argv[1].rstrip("/")
 _, rows = parse_plan(open(f"{P}/images/image-plan.md", encoding="utf-8").read())
 m = re.search(r"min_images=(\d+)", open("knowledge/design-system.md", encoding="utf-8").read())
 need = int(m.group(1)) if m else 5
-ok = sum(1 for r in rows if r["file"].strip("` ").startswith(("images/", "photos/")))   # 보류·제거 제외
-print(f"확정 이미지: {ok} / 필요 {need}")
+body = [r for r in rows if r["slot"] != "00"]                                            # 00 표지는 본문 이미지 수에서 제외
+ok = sum(1 for r in body if r["file"].strip("` ").startswith(("images/", "photos/")))   # 보류·제거 제외
+cover = os.path.isfile(f"{P}/images/00-cover.png")
+print(f"확정 이미지: {ok} / 필요 {need} · 표지 00 행: {'있음' if any(r['slot'] == '00' for r in rows) else '없음'} · 00-cover.png: {'있음' if cover else '없음'}")
 PY
 ```
 
-- 확정 이미지 ≥ 필요 → Step 4.
-- 확정 이미지 < 필요 → **Step 4로 가지 않고 멈춘다**(final.md를 만들지 않음). 이랑에게 "확정 이미지 n장 / 필요 m장 — 키 또는 실사진 준비 후 `/clark-blog:blog-run resume <NNN>`"이라고 알리고 종료 보고로 간다(키는 결제 설정된 프로젝트의 `GEMINI_API_KEY`, 실사진은 `photos/`에). image-plan.md·gates.md는 그대로 두어 `resume`이 이어받게 한다.
+- 확정 이미지 ≥ 필요 **그리고** `00-cover.png: 있음` → Step 4.
+- 표지 `00` 행이 없으면 → 스킬 5단계대로 `00` 행을 추가하고 표지를 만든 뒤 게이트 3에서 표지만 묻는다.
+- 확정 이미지 < 필요, 또는 `00-cover.png: 없음`(키 없음 + 맞는 실사진 없음) → **Step 4로 가지 않고 멈춘다**(final.md를 만들지 않음). 이랑에게 "확정 이미지 n장 / 필요 m장 · 표지 있음|없음 — 키 또는 실사진 준비 후 `/clark-blog:blog-run resume <NNN>`"이라고 알리고 종료 보고로 간다(키는 결제 설정된 프로젝트의 `GEMINI_API_KEY`, 실사진은 `photos/`에). image-plan.md·gates.md는 그대로 두어 `resume`이 이어받게 한다.
 
 ## Step 4. `final.md` 생성 (메인)
 
-`draft-v2.md`의 `![슬롯: …]()`을 등장 순서(01, 02, …)대로 `image-plan.md`의 같은 슬롯 행과 맞춰 `![<캡션(alt)>](<절대경로>)`로 바꾼다. `파일`이 `images/…`면 글 폴더 기준, `photos/…`면 작업 폴더 기준으로 절대경로를 만들고, `제거`·`보류`면 그 줄을 지운다(지운 자리의 연속 빈 줄은 하나로 줄인다). frontmatter·B안 주석·본문 나머지는 그대로 둔다(B안 주석은 업로드 스크립트가 지운다).
+`scripts/build_final.py`가 `draft-v2.md` + `images/image-plan.md`로 업로드본 `final.md`를 만든다(draft-v2.md는 건드리지 않는다 — 출처·슬롯 설명이 남은 원본으로 보존). 하는 일: `![슬롯: …]()`을 등장 순서대로 image-plan `01…` 행(`00` 제외)과 맞춰 캡션 없는 `![](<절대경로>)`로(`제거`·`보류`는 줄째 삭제) · `(출처: URL)` 단독 괄호 제거 · 모든 `## ` 앞 여백(`ㅤ` 줄) · 표지 제목(`00` 행 `제목:`)과 frontmatter `title` 대조 · 마지막 `## 📞 문의 및 수강신청: 031-855-9948` 뒤에 학원소개 이미지 → `:::place <장소 검색어>:::` → 빈 줄 → `**#태그 …**` 마무리 블록. 변환에 실패(exit 1)하면 이전 `final.md`가 있어도 지운다(오래된 본이 업로드 단계로 넘어가지 않게). 메인은 final.md를 손으로 고치지 않는다.
 
 ```bash
-python3 - work/posts/<NNN-slug> <<'PY'
-import os, re, sys
-sys.path.insert(0, "scripts"); from gen_image import parse_plan   # image-plan.md 표 파서(표준 라이브러리만)
-P = sys.argv[1].rstrip("/")
-_, rows = parse_plan(open(f"{P}/images/image-plan.md", encoding="utf-8").read())
-plan = {r["slot"]: r for r in rows}
-out, n, err = [], 0, []
-for line in open(f"{P}/draft-v2.md", encoding="utf-8").read().splitlines():
-    if not re.fullmatch(r"\s*!\[슬롯:[^\]]*\]\(\s*\)\s*", line):
-        out.append(line); continue
-    n += 1; k = "%02d" % n; r = plan.get(k)
-    f = (r or {}).get("file", "").strip("` ")
-    if r is None:
-        err.append(f"{k}: image-plan.md에 행 없음")
-    elif f in ("제거", "보류"):
-        continue                                   # 제거·보류 슬롯은 줄째 삭제
-    elif f.startswith("images/"):
-        a = os.path.abspath(os.path.join(P, f))    # ai = 글 폴더 기준
-    elif f.startswith("photos/"):
-        a = os.path.abspath(f)                     # photo = 작업 폴더 기준
-    else:
-        err.append(f"{k}: 파일 칸 미확정({f or '빈칸'})")
-    if r is None or not (f.startswith("images/") or f.startswith("photos/")):
-        out.append(line); continue
-    if not os.path.isfile(a):
-        err.append(f"{k}: 파일 없음 {a}")
-    out.append(f"![{r['caption']}]({a})")
-if n != len(rows):
-    err.append(f"슬롯 수 불일치: draft-v2.md {n}개 / image-plan.md {len(rows)}행")
-if err:
-    sys.exit("final.md를 만들지 않았습니다:\n" + "\n".join(err))
-text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).rstrip("\n") + "\n"   # 지운 줄 자리의 연속 빈 줄 정리
-open(f"{P}/final.md", "w", encoding="utf-8").write(text)
-cnt = lambda v: sum(1 for r in rows if r["file"].strip("` ") == v)
-print(f"final.md 작성 — 슬롯 {n}개(제거 {cnt('제거')}개, 보류 {cnt('보류')}개)")
-PY
-python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage final --json > work/posts/<NNN-slug>/lint.json; echo "exit=$?"
+python3 scripts/build_final.py work/posts/<NNN-slug> 2>&1; echo "exit=$?"
 ```
 
-- 스크립트가 "final.md를 만들지 않았습니다"로 끝나면 그 사유대로 Step 3(게이트 3)으로 돌아가 슬롯을 확정한다.
-- **Step 4 → Step 3 되돌아가기는 글 1편당 1회**(아래 lint FAIL의 이미지 쪽 포함). 두 번째로 필요해지면 멈추고 보고한다.
+- exit 0 → 출력 `final.md 작성 — 슬롯 n개(제거 a개, 보류 b개) · 출처 제거 c개 · 필러 삽입 d줄`을 기록하고 아래 lint로.
+- exit 2 → 사용 오류(글 폴더·draft-v2.md 없음). 중단·보고.
+- exit 1 → `final.md를 만들지 않았습니다:` 아래 사유 줄마다 처리한다(final.md는 쓰이지 않았다):
+
+| 사유(출력 문구) | 처리 |
+|---|---|
+| `NN: image-plan.md에 행 없음` · `NN: 파일 칸 미확정(…)` · `NN: 파일 없음 …` · `슬롯 수 불일치: …(00 제외)` · `image-plan.md 없음`/`파싱 실패` | Step 3(게이트 3)으로 돌아가 그 슬롯을 확정한 뒤 Step 4 재실행 — 아래 "Step 4 → Step 3 1회"에 포함 |
+| `표지 재생성 필요 — 표지 제목 '…' ≠ title '…'` · `표지(00) 행 캡션에 '제목:' 없음` (게이트 2·B'에서 제목이 바뀜) | `00` 행 `캡션(alt)`을 `제목: <지금 frontmatter title 그대로>; 줄바꿈: …`으로 고치고 줄바꿈을 새 제목에 맞게 다시 정한 뒤 `make_cover.py`만 재실행(Step 3 표지 명령, 비용 0) → `00-cover.png`를 Read로 검수 → Step 4 재실행. 게이트 3을 다시 열지 않으며 Step 3 되돌아가기 횟수에도 넣지 않는다(종료 보고에 "제목 변경으로 표지를 다시 만들었습니다" 한 줄) |
+| `표지(00) 행 없음 — …` | Step 3에서 `00` 행 추가·표지 생성 → 게이트 3에서 표지만 묻기 → Step 4 재실행(Step 3 되돌아가기 1회에 포함) |
+| `혼합 출처 괄호 — lint source_format 참고: draft-v2.md N행…` | B' 재개 1회(디스패치 +1, `범위: 출처 괄호 단독형으로 — (출처: URL)만 남기고 조항·시행일은 문장 본문으로` · 해당 행 번호) → Step 4 재실행 |
+| `마지막 소제목이 '## 📞 문의 및 수강신청'로 시작하지 않음 …` | B' 재개 1회(디스패치 +1, `범위: 📞 문의 헤딩 — '## 📞 문의 및 수강신청: 031-855-9948'을 초안 마지막 줄로`) → Step 4 재실행 |
+| `frontmatter title 없음` · `frontmatter tags 없음 — …` · `draft-v2.md frontmatter 오류: …` | B' 재개 1회(디스패치 +1, `범위: frontmatter`) → Step 4 재실행 |
+| `학원소개 이미지 없음: …` | **중단** — "마무리 블록을 만들 수 없습니다 — photos/학원소개.png를 넣어 주세요" 안내 후 종료 보고 |
+
+  사유가 여러 줄이면 한 번에 모아 처리한다. 텍스트 사유(B' 재개)가 있으면 재개 전에 `python3 scripts/lint_post.py work/posts/<NNN-slug>/draft-v2.md --stage draft --json > work/posts/<NNN-slug>/lint.json`을 돌려 다른 텍스트 FAIL도 같은 재개 메시지(`lint: …/lint.json`)에 함께 넘긴다 — Step 4의 B' 재개는 빌더 사유·아래 lint FAIL을 합쳐 **글 1편당 1회**다. 재실행해도 같은 사유면 멈추고 보고한다.
+
+final.md가 만들어지면 업로드본 lint를 돌린다:
+
+```bash
+python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage upload --json > work/posts/<NNN-slug>/lint.json; echo "exit=$?"
+```
+
+- **Step 4 → Step 3 되돌아가기는 글 1편당 1회**(위 빌더 사유의 슬롯 쪽과 아래 lint FAIL의 이미지 쪽 합산). 두 번째로 필요해지면 멈추고 보고한다.
 - lint exit 0 → Step 5. exit 2 → 중단·보고.
-- lint exit 1 → FAIL id별로 처리한다(lint.json의 `checks[].result == "FAIL"`):
-  - 이미지 쪽 `image_paths`·`images`(제거로 장수 부족 등) → Step 3/게이트 3에서 해당 슬롯을 다시 정한 뒤 Step 4 재실행.
-  - 캡션 쪽 `seo_image_captions` → 메인이 `image-plan.md`의 `캡션(alt)`을 고친 뒤 Step 4 재실행.
-  - 텍스트 쪽(`forbidden`·`chars`·`h2_count`·`sources`·`placeholder_sources`·`related_links`·`title_keyword`·`tags_count`·`frontmatter`·`variation`·`h1_once`·`seo_title_length`·`seo_keyword_body`·`seo_keyword_h2`) → B' 재개 1회(디스패치 +1, `범위: lint FAIL 항목만` · `lint: work/posts/<NNN-slug>/lint.json` · "final.md가 아니라 draft-v2.md를 고칠 것") → Step 4 재실행. 그래도 FAIL이면 멈추고 보고.
+- lint exit 1 → FAIL id별로 처리한다(lint.json의 `checks[].result == "FAIL"`). upload 단계에서 `sources`·`seo_image_captions`는 **SKIP**이다(업로드본은 출처·캡션을 지우므로 — 대신 `sources_stripped`·`captions_empty`가 본다).
+
+| 갈래 | FAIL id | 처리 |
+|---|---|---|
+| 텍스트 | `forbidden` `chars` `h2_count` `sources` `placeholder_sources` `related_links` `title_keyword` `tags_count` `frontmatter` `variation` `h1_once` `seo_title_length` `seo_keyword_body` `seo_keyword_h2` `tone` `title_region` `source_format` | B' 재개 1회(디스패치 +1, `범위: lint FAIL 항목만` · `lint: work/posts/<NNN-slug>/lint.json` · "final.md가 아니라 draft-v2.md를 고칠 것") → Step 4 재실행(build_final.py부터). 재개로 title이 바뀌면 빌더가 "표지 재생성 필요"를 낸다 → 위 표대로 make_cover만. 그래도 FAIL이면 멈추고 보고 |
+| 이미지 | `image_paths` `images` `cover_file` | Step 3/게이트 3에서 해당 슬롯(장수 부족·경로)이나 표지(`00-cover.png` 없음 → make_cover 실행)를 다시 정한 뒤 Step 4 재실행 |
+| 빌더 | `sources_stripped` `captions_empty` `closing_block` `h2_spacing` | `build_final.py`가 만들어야 하는 형식이 깨진 것 = 빌더 버그. 고치거나 우회하지 말고 **중단·보고**(FAIL id·detail·글 폴더) |
 
 ## Step 5. 업로드 (메인 — 서브에이전트 금지: 로그인·2단계 인증·CAPTCHA 개입 가능)
 
@@ -406,7 +447,9 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage final --json
 
 `<blogId>`는 Step 0 출력의 `blogId:` 값(`own_blog.blogId`) — 세션 확인과 업로드가 같은 블로그를 쓰게 항상 넘긴다.
 
-1. dry-run — lint·frontmatter·이미지 경로만 확인(세션 확인·업로드 생략). title·category·tags·이미지 수를 이랑에게 보여 준다.
+스크립트는 `lint --stage upload` → 이중 검사(금칙어·`[[`·빈 이미지·`[출처 필요]`·`출처:`/캡션 잔존·`:::place`·`**#` 해시태그 줄) → 본문을 임시 폴더의 `body.md`로, 표지 `P/images/00-cover.png`를 그 폴더의 `images/00-cover.png`로 복사 → `naver-blog-cli create-draft-from-folder <임시 폴더> --markdown-file body.md --title --category --tags` 순으로 돈다. **from-folder는 본문이 참조하지 않는 `images/00-cover.*`를 본문 맨 앞에 캡션 없이 넣고 대표이미지로 지정한다**(노트 `0:표지`·`대표 지정`). 그래서 final.md 본문에는 표지가 없다(lint `cover_file`). 본문의 `:::place …:::`는 네이버 장소 카드가 되고, CLI가 고른 장소는 노트 `장소(…)`로 돌아온다.
+
+1. dry-run — lint·이중 검사·frontmatter·이미지 경로·표지 존재만 확인(세션 확인·업로드 생략). title·category·tags·이미지 수·표지 경로·장소 지시문을 이랑에게 보여 준다.
    ```bash
    bash scripts/naver_upload.sh work/posts/<NNN-slug>/final.md --blog-id <blogId> --dry-run 2>&1; echo "exit=$?"
    ```
@@ -420,16 +463,21 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage final --json
 
 | exit | 의미 | 대응 |
 |---|---|---|
-| 0 | 임시저장 완료 | 아래 "성공 기록" |
+| 0 | 임시저장 완료 | 아래 "성공 기록". 출력의 경고 줄(아래)을 함께 처리 |
 | 2 | 사용 오류(경로·frontmatter) | 인자와 `final.md` frontmatter 확인 후 중단·보고 |
-| 10 | `lint_post.py` 실패 | Step 4의 FAIL id별 처리와 같음(텍스트 → B' 재개, 이미지 → Step 3/4) |
-| 11 | 이중 검사 실패(금칙어·`[[`·빈 이미지·`[출처 필요]`) | lint 규칙 구멍이다 — 출력된 줄을 원인에 맞게 고친 뒤(텍스트는 B' 재개) 이랑에게 한 줄 보고 |
-| 12 | 이미지 경로가 절대경로가 아니거나 파일 없음 | Step 4 재실행(image-plan.md 기준 절대경로 치환) |
+| 10 | `lint_post.py --stage upload` 실패 | Step 4의 lint FAIL id별 처리와 같음(텍스트 → B' 재개, 이미지 → Step 3/4, 빌더 → 중단·보고) |
+| 11 | 이중 검사 실패 | lint 규칙 구멍이다. 금칙어·`[[`·`[출처 필요]` 같은 텍스트 줄 → B' 재개(draft-v2.md) 후 Step 4 재실행. `출처:` 잔존·캡션 잔존·`:::place` 없음·`**#` 없음·빈 이미지 → `build_final.py` 재실행(Step 4), 그래도 같으면 빌더 버그 — 중단·보고. 어느 쪽이든 이랑에게 한 줄 보고 |
+| 12 | 이미지 문제 — 표지 `images/00-cover.png` 없음, 또는 이미지 경로가 절대경로가 아니거나 파일 없음 | 표지 없음 → Step 3의 표지 명령(`make_cover.py`, 배경이 없으면 gen_image `--only 00` 또는 실사진 배경)으로 만든 뒤 업로드 재실행. 경로 문제 → Step 4 재실행(`build_final.py`가 image-plan.md 기준 절대경로로 다시 씀) |
 | 20 | 세션 없음/만료 또는 `naver-blog-cli` 없음 | `/clark-blog:blog-setup` 4단계 로그인 절차 안내("로그인 상태 유지" 체크, 사람이 직접) → 끝났다고 하면 같은 명령 1회 재실행 |
-| 30 | `create-draft` 실패 | 출력된 CLI 문구를 이랑에게 보여 주고(에디터 변경·이미지 10MB·세션 만료), 네이버 임시저장 글에 중복이 생겼는지 확인을 요청한 뒤 재시도는 1회까지 |
+| 30 | `create-draft-from-folder` 실패 | 출력된 CLI 문구를 이랑에게 보여 준다. `넣기 전에 걸린 것`(브라우저를 열기 전 이미지 존재·10MB 검사 실패)이면 그 파일을 고친 뒤 재시도. 그 밖(에디터 변경·세션 만료)은 네이버 임시저장 글에 중복이 생겼는지 확인을 요청한 뒤 재시도는 1회까지 |
 | 31 | 저장됐으나 목록에서 제목 확인 불가 | 이랑에게 "네이버 → 글쓰기 → 임시저장 글"에서 직접 확인 요청. 있으면 성공으로 기록 |
 
 같은 오류로 재시도는 한 번까지. 반복 실패하면 멈추고 보고한다(계정 안전). `publish-draft`·`delete-draft`는 호출하지 않는다.
+
+**성공 출력 읽기**(exit 0): `임시저장 완료 — …` 다음 줄에 `제목:`·`카테고리: … / 태그: … / 이미지: n장`, 장소 카드가 들어갔으면 `장소: <CLI가 고른 장소>`가 나온다. 경고 줄(저장은 됐으므로 exit 0):
+- `경고: 카테고리/태그 설정 실패 — …` → 종료 보고에서 직접 확인 요청.
+- `경고: 대표이미지 지정 실패 — 임시저장 글에서 첫 이미지를 대표로 직접 지정` → `## 업로드`에 `대표이미지: 실패(직접 지정)`, 종료 보고에서 직접 지정 요청.
+- `경고: 장소 카드 확인 필요 — <값>`(고른 장소에 `클라크`가 없음) → 종료 보고에 그 값과 "미리보기에서 지도 카드가 양주 클라크중장비운전학원인지 확인 — 아니면 `knowledge/academy-profile.md`의 `장소 검색어`를 `클라크중장비운전학원 양주`로 바꾸고 다음 글부터 반영"을 알린다.
 
 **성공 기록**(메인):
 
@@ -439,8 +487,10 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage final --json
    - 일시: …
    - 제목: <임시저장 제목>
    - 카테고리·태그: <스크립트 출력 그대로>
+   - 장소: <출력의 "장소:" 값, 없으면 "없음">
+   - 대표이미지: 지정됨 | 실패(직접 지정)
    - list-drafts 확인: <upload.log의 "성공 | … | list-drafts: …" 줄의 list-drafts 값, exit 31이면 "이랑 직접 확인">
-   - 경고: <"경고: 카테고리/태그 설정 실패" 출력이 있었으면 그 줄, 없으면 "없음">
+   - 경고: <출력의 "경고:" 줄 전부(카테고리/태그·대표이미지·장소 카드), 없으면 "없음">
    - 로그: work/posts/<NNN-slug>/upload.log
    ```
 2. `work/variation-log.md`에 한 줄 추가(`final.md` frontmatter `variation`에서 읽음, region은 `+`로 연결):
@@ -451,10 +501,10 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage final --json
    P = sys.argv[1].rstrip("/")
    fm, _, err = lint_post.parse_frontmatter(open(f"{P}/final.md", encoding="utf-8").read().splitlines())
    v = str((fm or {}).get("variation", ""))
-   one = lambda k: (re.search(rf"\b{k}\s*:\s*([^,}}\[]+)", v) or [None, ""])[1].strip()
+   one = lambda k: (re.search(rf"\b{k}\s*:\s*([^,}}\[]+)", v) or [None, ""])[1].strip().strip("'\"")
    reg = re.search(r"\bregion\s*:\s*\[([^\]]*)\]", v)
-   region = "+".join(x.strip() for x in reg.group(1).split(",") if x.strip()) if reg else ""
-   vals = [one("type"), one("structure"), one("intro"), region, one("cta")]
+   region = "+".join(x.strip().strip("'\"") for x in reg.group(1).split(",") if x.strip()) if reg else ""
+   vals = [one("type"), one("structure"), one("intro"), region, one("title_region")]
    if err or not all(vals):
        sys.exit(f"variation 읽기 실패: {v!r}")
    line = " | ".join([datetime.date.today().isoformat(), "posts/" + os.path.basename(P)] + vals)
@@ -463,16 +513,19 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage final --json
    print(line)
    PY
    ```
-   형식: `YYYY-MM-DD | posts/NNN-slug | type | structure | intro | region | cta` (예: `2026-10-07 | posts/001-지게차운전기능사-실기-준비 | 정보 | 절차형 | 상황 | 의정부+양주 | 관련글`).
+   형식(7열): `YYYY-MM-DD | posts/NNN-slug | type | structure | intro | region | title_region` (예: `2026-10-09 | posts/002-지게차운전기능사-실기-준비 | 정보 | 절차형 | 상황 | 의정부+양주 | 의정부`). 마지막 열은 다음 글 게이트 1의 "이번 제목 지역" 계산에 쓰인다.
 
 ## ● 종료 보고
 
 이랑에게 보고한다:
-- 임시저장 제목 · 카테고리 · 태그 · 이미지 수(스크립트 출력값)
+- 임시저장 제목 · 카테고리 · 태그 · 이미지 수(스크립트 출력값) · 장소(출력의 `장소:` 값)
+- "대표이미지는 표지(00-cover) — 미리보기에서 첫 사진에 '대표' 표시가 있는지 확인해 주세요." (`경고: 대표이미지 지정 실패`가 있었으면 대신: "대표이미지 지정에 실패했습니다. 임시저장 글에서 첫 사진(표지)을 대표로 직접 지정해 주세요.")
 - 스크립트 출력에 `경고: 카테고리/태그 설정 실패`가 있었으면 반드시: "임시저장은 됐지만 카테고리·태그가 빠졌을 수 있습니다. 임시저장 글에서 직접 확인해 주세요."
+- `경고: 장소 카드 확인 필요`가 있었으면 위 "성공 출력 읽기"의 안내.
+- Step 4에서 제목 변경으로 표지를 다시 만들었으면 그 한 줄.
 - 안내 문구: **"네이버 앱/웹 → 글쓰기 → 임시저장 글 → 미리보기 → 발행"** (발행은 이랑이 직접)
 - 보류 슬롯이 있으면(키 없음 모드): "AI 이미지 보류 n개 — 키 설정 후 `/clark-blog:blog-run resume <NNN>`". 그리고 **이번 final.md(임시저장본)는 계획보다 이미지가 n장 적다**는 것, `.env`에 키를 넣은 뒤 `resume <NNN>`을 실행하면 Step 3(이미지)부터 보류 슬롯을 채운 final.md를 새로 만들 수 있다는 것을 함께 알린다.
-- 확정 이미지 부족으로 Step 3 뒤에서 멈췄으면: "final.md·임시저장은 아직 없습니다. 확정 이미지 n장 / 필요 m장 — 키 또는 실사진 준비 후 `/clark-blog:blog-run resume <NNN>`" (위 임시저장 항목·발행 안내 대신)
+- 확정 이미지 부족·표지 없음으로 Step 3 뒤에서 멈췄으면: "final.md·임시저장은 아직 없습니다. 확정 이미지 n장 / 필요 m장 · 표지 있음|없음 — 키 또는 실사진 준비 후 `/clark-blog:blog-run resume <NNN>`" (위 임시저장 항목·발행 안내 대신)
 - 세션 없음 모드로 업로드를 미뤘으면: "임시저장은 아직 안 됐습니다. 로그인 후 `/clark-blog:blog-run resume <NNN>`" (위 임시저장 항목·발행 안내 대신)
 - 글 폴더 경로, 디스패치 `n/7`, 게이트 1에서 남긴 번호가 있으면 "`/clark-blog:blog-run <번호>`로 이어서"
 
@@ -488,17 +541,18 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage final --json
 
 ### 이미지 재개 (Step 3 → 게이트 3 → Step 4 → Step 5)
 
-1. Step 0의 preflight Bash를 그대로 실행하고 Step 0 표대로 판정한다: `work-folder`·`script`·`skill`·`design-system.md`가 MISSING/OUTDATED이면 그 표의 안내 후 끝낸다. `GEMINI_API_KEY: MISSING`이면 키 없음 모드, `session`이 OK가 아니면 세션 없음 모드로 계속한다. `blogId`·`photos:`·`min_images:`를 기억한다.
+1. Step 0의 preflight Bash를 그대로 실행하고 Step 0 표대로 판정한다: `work-folder`·`script`·`skill`·`design-system.md`·`academy-image`·`font`·`uv`가 MISSING/OUTDATED이면 그 표의 안내 후 끝낸다. `GEMINI_API_KEY: MISSING`이면 키 없음 모드, `session`이 OK가 아니면 세션 없음 모드로 계속한다. `blogId`·`photos:`·`min_images:`를 기억한다.
 2. Step 3을 수행한다. `P/images/image-plan.md`가 이미 있으면 새로 쓰지 않고 그 계획을 이어 쓴다: 키가 있으면 `파일`이 `보류`인 ai 슬롯만 `uv run --with google-genai --with pillow scripts/gen_image.py work/posts/<NNN-slug>/images/image-plan.md --only <보류 슬롯 번호(쉼표)>`로 생성하고 Step 3의 검수(스킬 7단계 기준·한도)를 따른다. 실사진을 준비했으면 게이트 3에서 그 슬롯을 `실사진으로 교체`로 고르게 한다.
-3. 게이트 3 → 확정 이미지 수 확인(여전히 부족하면 다시 멈추고 같은 `resume` 안내) → Step 4 → Step 5 → 종료 보고. Step 4·5에서 B' 재개가 필요해지면(lint 텍스트 FAIL, exit 10·11) 디스패치하지 않고 실패 항목을 보고한 뒤 "`/clark-blog:blog-run`(전체 워크플로우)으로 고친 뒤 다시 `resume`"이라고 안내하고 끝낸다.
+   **표지(00) 보류 처리**: `00` 행이 없으면(이전 버전 계획) 스킬 5단계대로 맨 윗줄에 추가한다. `P/images/00-cover.png`가 없으면(키 없음 `표지 보류`) — 키가 있으면 `--only` 목록에 `00`을 넣어 배경 `00-bg.png`를 만든 뒤 `make_cover.py`로 합성하고, 키가 없으면 `photos/` 실사진 배경으로 `make_cover.py`만 돌린다(Step 3 표지 명령). 이미 있더라도 `00` 행 `제목:`이 지금 frontmatter `title`과 다르면 `make_cover.py`만 다시 돌린다. 게이트 3의 첫 슬롯은 표지다.
+3. 게이트 3 → 확정 이미지 수 확인(여전히 부족하거나 표지가 없으면 다시 멈추고 같은 `resume` 안내) → Step 4(`build_final.py` → `lint --stage upload`) → Step 5 → 종료 보고. Step 4·5에서 B' 재개가 필요해지면(빌더 텍스트 사유, upload lint 텍스트 FAIL, exit 10·11) 디스패치하지 않고 실패 항목을 보고한 뒤 "`/clark-blog:blog-run`(전체 워크플로우)으로 고친 뒤 다시 `resume`"이라고 안내하고 끝낸다.
 
 ### 업로드 재개 (Step 5만 — 세션이 없어 업로드를 미뤘을 때)
 
-1. Step 0의 preflight Bash를 그대로 실행하고 Step 0 표대로 판정한다: `work-folder: MISSING`·`script: MISSING`/`OUTDATED`·`skill: MISSING`이면 그 표의 안내 후 끝낸다. `blogId`를 기억한다. `session: OK`가 아니면 로그인 안내 후 끝낸다(`GEMINI_API_KEY`·`design-system.md`는 업로드와 무관 — 무시. 단 위의 보류 이미지 질문에는 `GEMINI_API_KEY` 결과를 쓴다).
+1. Step 0의 preflight Bash를 그대로 실행하고 Step 0 표대로 판정한다: `work-folder: MISSING`·`script: MISSING`/`OUTDATED`·`skill: MISSING`이면 그 표의 안내 후 끝낸다. `blogId`를 기억한다. `session: OK`가 아니면 로그인 안내 후 끝낸다(`GEMINI_API_KEY`·`design-system.md`·`academy-image`·`font`·`uv`는 업로드만 할 때는 무관 — 무시. final.md는 이미 만들어져 있다. 단 위의 보류 이미지 질문에는 `GEMINI_API_KEY` 결과를 쓴다).
 2. `gates.md`에 `## 업로드`가 이미 있으면 "이미 임시저장했습니다(<일시>)"라고 알리고, 다시 올릴지 AskUserQuestion `다시 올리기` / `그만두기`(중복 임시저장 주의).
-3. `python3 scripts/lint_post.py <P>/final.md --stage final --json > <P>/lint.json` — exit 1이면 FAIL id를 보고하고 끝낸다(텍스트 수정이 필요하면 이 명령이 아니라 전체 워크플로우로).
+3. `python3 scripts/lint_post.py <P>/final.md --stage upload --json > <P>/lint.json` — exit 1이면 FAIL id를 보고하고 끝낸다(텍스트 수정이 필요하면 이 명령이 아니라 전체 워크플로우로. 이전 버전(0.1.x)에서 만든 final.md는 출처·캡션이 남아 있고 마무리 블록·소제목 여백·표지가 없어 `sources_stripped`·`captions_empty`·`closing_block`·`h2_spacing`·`cover_file`에서 FAIL한다 — 이때는 "이전 형식 final.md입니다 — `resume`으로는 올릴 수 없습니다"라고 알린다).
 4. Step 5의 dry-run → 실제 임시저장(`--blog-id <blogId>`) → exit code 표대로 대응 → 성공 기록(`## 업로드` + variation-log 1줄) → 종료 보고.
-   단 `resume`에서는 **디스패치하지 않는다**: exit 10(lint 실패)·11(이중 검사 실패)이 나오면 B' 재개(디스패치)가 필요하므로 출력된 실패 항목을 보고하고 "`/clark-blog:blog-run`(전체 워크플로우)으로 고친 뒤 다시 `resume`"이라고 안내하고 끝낸다. exit 12도 Step 4가 필요하므로 같은 방식으로 안내하고 끝낸다.
+   단 `resume`에서는 **디스패치하지 않는다**: exit 10(lint 실패)·11(이중 검사 실패)이 나오면 B' 재개(디스패치)가 필요하므로 출력된 실패 항목을 보고하고 "`/clark-blog:blog-run`(전체 워크플로우)으로 고친 뒤 다시 `resume`"이라고 안내하고 끝낸다. exit 12(표지 없음·이미지 경로)도 Step 3/4가 필요하므로 같은 방식으로 안내하고 끝낸다.
 
 ---
 
@@ -515,4 +569,4 @@ P=$(ls -d work/posts/NNN-* 2>/dev/null | head -1); echo "P=${P:-없음}"
 [ -n "$P" ] && tail -n 5 "$P/upload.log" 2>/dev/null
 ```
 
-글 폴더가 없으면 "work/posts/NNN-* 글이 없습니다"라고만 답한다. 있으면 표로 요약한다: 단계(선택 · 초안(draft.md) · 팩트체크(요약 줄) · draft-v2 · 게이트 2 · 이미지(image-plan.md·승인) · final.md · lint(stage·pass·FAIL id) · 업로드(upload.log 마지막 결과)) | 상태 | 근거 파일. 마지막에 "다음 할 일" 한 줄.
+글 폴더가 없으면 "work/posts/NNN-* 글이 없습니다"라고만 답한다. 있으면 표로 요약한다: 단계(선택 · 초안(draft.md) · 팩트체크(요약 줄) · draft-v2 · 게이트 2 · 이미지(image-plan.md·표지 `00-cover.png`·승인) · final.md · lint(stage·pass·FAIL id — final.md 검사는 `upload` 단계여야 한다) · 업로드(upload.log 마지막 결과 — `장소=` 값 포함)) | 상태 | 근거 파일. 마지막에 "다음 할 일" 한 줄.

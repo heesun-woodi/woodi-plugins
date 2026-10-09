@@ -1,5 +1,5 @@
 ---
-description: 클라크 블로그 자동화 작업 폴더를 준비하고 환경(uv·Python·Playwright·naver-blog-cli·네이버 로그인 세션·API 키)을 진단합니다.
+description: 클라크 블로그 자동화 작업 폴더를 준비하고 환경(uv·Python·Playwright·naver-blog-cli·네이버 로그인 세션·API 키·한글 폰트·학원소개 이미지)을 진단합니다.
 argument-hint: "[작업 폴더 경로 (선택, 기본 현재 폴더)]"
 allowed-tools: Bash, Read, Write, Glob, Skill
 ---
@@ -74,6 +74,11 @@ if [ -n "$GEMINI_API_KEY" ]; then echo "GEMINI_API_KEY: env에 있음"
 elif [ -f .env ] && grep -q '^GEMINI_API_KEY=.' .env; then echo "GEMINI_API_KEY: .env에 있음"
 else echo "GEMINI_API_KEY: MISSING"; fi
 [ -f knowledge/design-system.md ] && echo "design-system.md: OK" || echo "design-system.md: MISSING (경고만, 오류 아님)"
+echo "--- 표지·마무리 자산 ---"
+if [ -f "$HOME/Library/Fonts/Pretendard-ExtraBold.otf" ]; then echo "font: OK (Pretendard)"
+elif [ -f /System/Library/Fonts/AppleSDGothicNeo.ttc ]; then echo "font: OK (AppleSDGothicNeo — Pretendard 권장)"
+else echo "font: MISSING"; fi
+[ -f photos/학원소개.png ] && echo "academy-image: OK" || echo "academy-image: MISSING"
 ```
 
 ## 3. 작업 폴더 준비 (scaffold 복사)
@@ -101,12 +106,14 @@ for f in knowledge/*.md; do grep -q 'Task [0-9]*에서 채움' "$f" && cp "${CLA
 
 | 항목 | 상태 | 조치 |
 |---|---|---|
-| uv | OK / MISSING | 아래 명령 |
+| uv | OK / MISSING | 아래 명령(표지 합성·이미지 생성이 `uv run --with pillow …`로 돈다 — 시스템 python3에는 Pillow가 없음) |
 | python3 ≥ 3.11 | OK / MISSING | 3.11 이상 설치 (scaffold 스크립트용. naver-blog-cli는 uv가 자체 Python을 씀) |
 | Playwright Chromium | OK / MISSING | 아래 명령 |
 | naver-blog-cli | OK / MISSING | 아래 명령 |
 | 네이버 세션 | 정상 / 로그인 필요 | 아래 로그인 절차 |
 | GEMINI_API_KEY | OK / MISSING | 아래 안내 |
+| 한글 폰트(표지 합성) | OK / MISSING | 아래 안내 |
+| photos/학원소개.png | OK / MISSING | 아래 안내 |
 | knowledge/design-system.md | OK / 없음(경고) | 5단계 안내 |
 
 **누락된 항목에 대해서만** 그대로 실행할 수 있는 명령을 코드블록으로 출력한다.
@@ -140,9 +147,22 @@ for f in knowledge/*.md; do grep -q 'Task [0-9]*에서 채움' "$f" && cp "${CLA
 
   키 값은 채팅에 붙여넣지 마세요.
   ```
+- 한글 폰트(표지 합성용, `scripts/make_cover.py`)
+  ```
+  대표이미지(표지)에 제목을 얹으려면 한글 폰트가 필요합니다. Pretendard를 받아(https://github.com/orioncactus/pretendard/releases)
+  Pretendard-ExtraBold.otf·Pretendard-SemiBold.otf를 ~/Library/Fonts/ 에 넣어 주세요.
+  (macOS 기본 /System/Library/Fonts/AppleSDGothicNeo.ttc가 있으면 그것으로도 만들 수 있습니다. 둘 다 없으면 /clark-blog:blog-run이 멈춥니다.)
+  ```
+- photos/학원소개.png
+  ```
+  모든 글 끝 마무리 블록(📞 문의 헤딩 → 학원소개 이미지 → 장소 카드 → 해시태그)에 들어가는 고정 이미지입니다.
+  학원명·연락처·주소가 담긴 학원소개 이미지를 작업 폴더의 photos/학원소개.png 로 넣어 주세요(파일명 그대로).
+  이 파일이 없으면 /clark-blog:blog-run이 시작하지 않습니다.
+  ```
 
 ## 5. 다음 단계 안내
 
 - `knowledge/design-system.md`가 없으면: "design-system.md가 없습니다. `blog-design-system` 스킬로 생성을 요청하세요. (글 검사 `lint_post.py`는 이 파일이 없어도 경고만 냅니다.)"
+- `knowledge/design-system.md`가 이미 있으면(예: v0.3 — 레퍼런스 0 자기 글 기준 고정 골격·합니다체·title_region): "디자인 시스템을 고치려면 `blog-design-system` 스킬의 **갱신 모드**를 쓰세요(백업 → `work/design-system/proposed.md` → 이랑 승인 → `knowledge/` 교체). 3단계 복사는 이 파일을 덮어쓰지 않습니다."
 - 누락·로그인 필요 항목이 남아 있으면 해결 후 이 커맨드를 다시 실행하라고 안내한다.
 - 모두 갖춰졌으면: "준비가 끝났습니다. `/clark-blog:blog-run`으로 글 작성을 시작하세요."

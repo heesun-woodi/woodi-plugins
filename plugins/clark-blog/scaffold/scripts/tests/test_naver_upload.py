@@ -9,18 +9,34 @@ SCRIPTS = os.path.dirname(HERE)
 DESIGN = "# 디자인 시스템\n\n<!-- lint: min_chars=900 max_chars=6000 min_h2=3 max_h2=5 min_images=2 min_sources=1 tags_min=3 tags_max=6 -->\n"
 PROFILE = "# 학원\n\n## 금칙어\n\n- `실기시험장`\n"
 
-TITLE = "지게차운전기능사 실기 순서, 처음이라면 이렇게 준비하세요"
+TITLE = "의정부 지게차운전기능사 실기 순서, 처음이라면 이렇게 준비하세요"
+PLACE = "클라크중장비운전학원 양주시 백석읍"
 STUB = """#!/usr/bin/env bash
 echo "$* | id=${NAVER_BLOG_ID:-} | ro=NAVER_BLOG_READONLY=${NAVER_BLOG_READONLY:-}" >> "$STUB_LOG"
 case "$1" in
   check-session)
     if [ "${STUB_SESSION:-ok}" = ok ]; then echo "세션 정상 (https://blog.naver.com/x, 글쓰기 가능)";
     else echo "확인 실패: 세션 파일 없음: playwright-state/storage_state.json"; echo "python login_setup.py 를 먼저 실행해서 직접 로그인하세요."; fi ;;
-  create-draft)
-    while [ $# -gt 0 ]; do [ "$1" = --file ] && cp "$2" "$STUB_BODY"; shift; done
-    if [ "${STUB_CREATE:-ok}" = ok ]; then echo "임시저장 완료: 제목";
-    elif [ "$STUB_CREATE" = warn ]; then echo "임시저장 완료: 제목 [설정 실패(카테고리)]";
-    elif [ "$STUB_CREATE" = mixed ]; then echo "임시저장 완료: 제목 [작성 실패: x]"; else echo "임시저장 버튼을 못 찾음 (에디터 변경?)"; fi ;;
+  create-draft-from-folder)
+    shift
+    FOLDER="$1"; shift
+    MD=post.md
+    while [ $# -gt 0 ]; do case "$1" in --markdown-file) MD="$2"; shift ;; esac; shift; done
+    cp "$FOLDER/$MD" "$STUB_BODY"
+    if [ -f "$FOLDER/images/00-cover.png" ]; then echo "cover-present" >> "$STUB_LOG"; fi
+    case "${STUB_CREATE:-ok}" in
+      ok) echo "임시저장 완료: 제목 [0:표지, 1:이미지, 2:이미지, 3:이미지, 4:장소(클라크중장비운전학원 양주시 백석읍), 대표 지정, 카테고리=클라크중장비운전학원, 태그 5개]" ;;
+      warn) echo "임시저장 완료: 제목 [0:표지, 대표 지정, 설정 실패(카테고리)]" ;;
+      rep) echo "임시저장 완료: 제목 [0:표지, 1:이미지, 4:장소(클라크중장비운전학원 양주시 백석읍), 대표 지정 실패, 카테고리=x]" ;;
+      cover) echo "임시저장 완료: 제목 [0:표지 넣기 실패(timeout), 4:장소(클라크중장비운전학원 양주시 백석읍), 카테고리=x]" ;;
+      norep) echo "임시저장 완료: 제목 [0:표지, 4:장소(클라크중장비운전학원 양주시), 카테고리=x]" ;;
+      noplace) echo "임시저장 완료: 제목 [0:표지, 대표 지정, 카테고리=x]" ;;
+      place) echo "임시저장 완료: 제목 [0:표지, 4:장소(다른학원 서울), 대표 지정, 카테고리=x]" ;;
+      mixed) echo "임시저장 완료: 제목 [작성 실패: x]" ;;
+      preflight) printf '넣기 전에 걸린 것 (아무것도 하지 않았습니다):\n- 이미지 없음: /x.png\n' ;;
+      other) echo "알 수 없는 출력" ;;
+      *) echo "임시저장 버튼을 못 찾음 (에디터 변경?)" ;;
+    esac ;;
   list-drafts)
     if [ "${STUB_LIST:-ok}" = ok ]; then echo "$STUB_TITLE  (2026-10-06)"; else echo "임시저장된 글이 없습니다"; fi ;;
 esac
@@ -51,29 +67,38 @@ class NaverUploadTest(unittest.TestCase):
         self.sbody = os.path.join(r, "stub-body.md")
         self.img = os.path.join(self.post, "img1.png")
         open(self.img, "wb").close()
+        self.intro = os.path.join(self.post, "학원소개.png")
+        open(self.intro, "wb").close()
+        os.makedirs(os.path.join(self.post, "images"))
+        self.cover = os.path.join(self.post, "images", "00-cover.png")
+        open(self.cover, "wb").close()
         self.final = os.path.join(self.post, "final.md")
         self.write_final(self.sample())
 
     def tearDown(self):
         self._tmp.cleanup()
 
-    def sample(self, img=None, extra=""):
+    def sample(self, img=None, extra="", tail=None):
         imgs = [img or self.img, self.img, self.img]
+        F = "\u3164"
         secs = []
-        for s in range(4):
-            sents = " ".join(f"지게차 실습은 순서를 익히면 차분하게 해낼 수 있습니다 {s}-{i}." for i in range(14))
-            src = f" (출처: https://www.law.go.kr/s{s})" if s < 2 else ""
-            h2 = "지게차 운전기능사 소제목 1" if s == 0 else f"소제목 {s + 1}"
-            sec = f"## {h2}\n\n**핵심** 지게차 운전기능사 {sents}{src}\n\n> 한 줄 요약\n"
-            if s < 3:
-                sec += f"\n![캡션{s + 1}]({imgs[s]})\n"
+        for n in range(4):
+            sents = " ".join(f"지게차 실습은 순서를 익히면 차분하게 해낼 수 있습니다 {n}-{i}." for i in range(14))
+            h2 = "지게차 운전기능사 소제목 1" if n == 0 else f"소제목 {n + 1}"
+            sec = f"{F}\n## {n + 1}\ufe0f\u20e3 {h2}\n\n**핵심** 지게차 운전기능사 {sents}\n"
+            if n < 3:
+                sec += f"\n![]({imgs[n]})\n"
             secs.append(sec)
-        secs[3] += ("\n[관련글1](https://blog.naver.com/pajuclark/1)\n"
-                    "[관련글2](https://blog.naver.com/pajuclark/2)\n" + extra)
+        closing = (tail if tail is not None else
+                   "[관련글1](https://blog.naver.com/pajuclark/1)\n[관련글2](https://blog.naver.com/pajuclark/2)\n\n"
+                   f"{F}\n## 📞 문의 및 수강신청: 031-855-9948\n\n![]({self.intro})\n"
+                   f":::place 클라크중장비운전학원:::\n\n**#지게차운전기능사 #지게차실기 #의정부지게차학원 #양주지게차학원 #국비지원**\n")
         fm = (f"---\ntitle: {TITLE}\nkeyword: 지게차 운전기능사\ncategory: 클라크중장비운전학원\n"
               "tags: [지게차운전기능사, 지게차실기, 의정부지게차학원, 양주지게차학원, 국비지원]\n"
-              "variation: {structure: 절차형, intro: 상황, region: [의정부, 양주], cta: 관련글}\n---\n")
-        return (fm + "<!-- 제목 B안: 다른 제목 후보 -->\n\n# 지게차운전기능사 실기 순서\n\n" + "\n".join(secs))
+              "variation: {type: 정보, structure: 절차형, intro: 상황, region: [의정부, 양주], title_region: 의정부}\n---\n")
+        toc = "\u3164\n## 📑 목차\n- 소제목 1\n- 소제목 2\n- 소제목 3\n- 소제목 4\n\n---\n\n"
+        return (fm + "<!-- 제목 B안: 다른 제목 후보 -->\n\n# 지게차운전기능사 실기 순서\n\n도입 문단입니다.\n\n" + toc
+                + "\n".join(secs) + extra + "\n" + closing)
 
     def write_final(self, text):
         with open(self.final, "w", encoding="utf-8") as f:
@@ -119,8 +144,10 @@ class NaverUploadTest(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn(f"title: {TITLE}", p.stdout)
         self.assertIn("tags: 지게차운전기능사,지게차실기,의정부지게차학원,양주지게차학원,국비지원", p.stdout)
-        self.assertIn("이미지 수: 3", p.stdout)
-        self.assertNotIn("create-draft", self.stub_calls())
+        self.assertIn("이미지 수: 4", p.stdout)  # 본문 3 + 학원소개 1 (표지는 본문 밖)
+        self.assertIn("표지: " + self.cover, p.stdout)
+        self.assertIn("장소 지시문: :::place 클라크중장비운전학원:::", p.stdout)
+        self.assertNotIn("create-draft-from-folder", self.stub_calls())
 
     def test_relative_image_blocked_by_lint(self):
         self.write_final(self.sample(img="images/01-cover.png"))
@@ -168,7 +195,7 @@ class NaverUploadTest(unittest.TestCase):
         self.assertEqual(p.returncode, 20, p.stderr)
         self.assertIn("확인 실패", p.stderr)
         self.assertIn("login_setup.py", p.stderr)
-        self.assertNotIn("create-draft", self.stub_calls())
+        self.assertNotIn("create-draft-from-folder", self.stub_calls())
 
     def test_success_flow(self):
         p = self.run_script("--blog-id", "myblog")
@@ -176,7 +203,13 @@ class NaverUploadTest(unittest.TestCase):
         self.assertIn("임시저장 완료", p.stdout)
         calls = self.stub_calls()
         self.assertIn("id=myblog", calls)
-        self.assertIn("create-draft --title=" + TITLE, calls)
+        self.assertIn("create-draft-from-folder ", calls)
+        self.assertIn("--markdown-file body.md", calls)
+        self.assertIn("--title=" + TITLE, calls)
+        self.assertIn("--tags=지게차운전기능사,지게차실기,의정부지게차학원,양주지게차학원,국비지원", calls)
+        self.assertIn("cover-present", calls)   # $WORK/images/00-cover.png 가 복사돼 있었다
+        self.assertIn("장소: 클라크중장비운전학원 양주시 백석읍", p.stdout)
+        self.assertNotIn("경고", p.stderr)
         self.assertIn("--category=클라크중장비운전학원", calls)
         self.assertNotIn("publish-draft", calls)
         self.assertNotIn("delete-", calls)
@@ -186,13 +219,113 @@ class NaverUploadTest(unittest.TestCase):
         self.assertNotIn("제목 B안", body)
         self.assertNotIn("\n# ", "\n" + body)
         self.assertNotIn("title:", body)
-        self.assertIn("## 소제목 2", body)
+        self.assertIn("## 2\ufe0f\u20e3 소제목 2", body)
+        self.assertIn("\u3164\n## 1\ufe0f\u20e3", body)          # ㅤ 여백 줄 보존
+        self.assertIn(":::place 클라크중장비운전학원:::", body)
+        self.assertIn("\n**#지게차운전기능사 ", body)                # 해시태그 줄 보존
+        self.assertNotIn("00-cover", body)                          # 표지는 본문이 아니라 폴더 images/ 로
         with open(os.path.join(self.post, "upload.log"), encoding="utf-8") as f:
             log = f.read()
         self.assertIn("성공", log)
+        self.assertIn("장소=클라크중장비운전학원 양주시 백석읍", log)
         self.assertIn(TITLE, log)
         leftovers = [n for n in os.listdir(self.root) if n.startswith("naver-upload.")]
         self.assertEqual(leftovers, [])
+
+    def test_cover_missing_exit_12(self):
+        os.remove(self.cover)
+        p = self.run_script("--dry-run")
+        self.assertEqual(p.returncode, 12, p.stderr)
+        self.assertIn("표지 images/00-cover.png 없음", p.stderr)
+        self.assertIn("make_cover.py", p.stderr)
+        self.assertEqual(self.stub_calls(), "")
+
+    def test_rep_image_failure_warning(self):
+        for mode in ("rep", "cover"):
+            os.path.exists(self.log) and os.remove(self.log)
+            p = self.run_script(STUB_CREATE=mode)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertIn("경고: 대표이미지 지정 실패 — 임시저장 글에서 첫 이미지를 대표로 직접 지정", p.stderr)
+            with open(os.path.join(self.post, "upload.log"), encoding="utf-8") as f:
+                self.assertIn("대표이미지 지정 실패", f.read())
+
+    def test_place_warning_when_not_clark(self):
+        p = self.run_script(STUB_CREATE="place")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("경고: 장소 카드 확인 필요 — 다른학원 서울", p.stderr)
+        self.assertIn("장소: 다른학원 서울", p.stdout)
+
+    def test_precheck_leftover_source_exit_11(self):
+        self._neuter_lint()
+        self.write_final(self.sample(extra="\n지게차는 중요합니다 출처: https://x.kr\n"))
+        p = self.run_script("--dry-run")
+        self.assertEqual(p.returncode, 11, p.stderr)
+        self.assertEqual(self.stub_calls(), "")
+
+    def _neuter_lint(self):
+        lp = os.path.join(self.root, "scripts", "lint_post.py")
+        with open(lp, encoding="utf-8") as f:
+            src = f.read()
+        marker = 'if __name__ == "__main__":\n    sys.exit(main())'
+        with open(lp, "w", encoding="utf-8") as f:
+            f.write(src.replace(marker, 'if __name__ == "__main__":\n    sys.exit(0)'))
+
+    def test_precheck_source_leftover_exit_11(self):
+        self._neuter_lint()
+        self.write_final(self.sample(extra="\n지게차는 중요합니다 (출처: https://x.kr)\n"))
+        p = self.run_script("--dry-run")
+        self.assertEqual(p.returncode, 11, p.stderr)
+        self.assertIn("출처: 잔존", p.stderr)
+        self.assertIn("scripts/build_final.py 재실행", p.stderr)
+
+    def test_precheck_caption_leftover_exit_11(self):
+        self._neuter_lint()
+        self.write_final(self.sample().replace(f"![]({self.img})", f"![캡션]({self.img})", 1))
+        p = self.run_script("--dry-run")
+        self.assertEqual(p.returncode, 11, p.stderr)
+        self.assertIn("alt(캡션) 있는 이미지", p.stderr)
+
+    def test_precheck_missing_place_and_hashtag_exit_11(self):
+        self._neuter_lint()
+        self.write_final(self.sample(tail="## 📞 문의 및 수강신청: 031-855-9948\n"))
+        p = self.run_script("--dry-run")
+        self.assertEqual(p.returncode, 11, p.stderr)
+        self.assertIn(":::place 지시문 없음", p.stderr)
+        self.assertIn("**# 해시태그 줄 없음", p.stderr)
+
+    def test_precheck_link_source_exit_11(self):
+        self._neuter_lint()
+        self.write_final(self.sample(extra="\n지게차는 중요합니다 [출처](https://x.kr)\n"))
+        p = self.run_script("--dry-run")
+        self.assertEqual(p.returncode, 11, p.stderr)
+        self.assertIn("[출처]( 링크형", p.stderr)
+
+    def test_rep_unconfirmed_warning(self):
+        p = self.run_script(STUB_CREATE="norep")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("경고: 대표이미지 지정 확인 불가 — 임시저장 글에서 확인", p.stderr)
+
+    def test_place_missing_warning(self):
+        p = self.run_script(STUB_CREATE="noplace")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("경고: 장소 카드 확인 필요", p.stderr)
+
+    def test_tags_normalized(self):
+        txt = self.sample().replace("tags: [지게차운전기능사, 지게차실기, 의정부지게차학원, 양주지게차학원, 국비지원]",
+                                    "tags: [#지게차운전기능사, 지게차 실기, 의정부지게차학원, 양주지게차학원, 국비지원]")
+        self.write_final(txt)
+        p = self.run_script()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("--tags=지게차운전기능사,지게차실기,의정부지게차학원", self.stub_calls())
+
+    def test_preflight_failure_exit_30(self):
+        p = self.run_script(STUB_CREATE="preflight")
+        self.assertEqual(p.returncode, 30, p.stderr)
+        self.assertIn("넣기 전에 걸린 것", p.stderr)
+
+    def test_unknown_output_exit_30(self):
+        p = self.run_script(STUB_CREATE="other")
+        self.assertEqual(p.returncode, 30, p.stderr)
 
     def test_create_failure_exit_30(self):
         p = self.run_script(STUB_CREATE="fail")

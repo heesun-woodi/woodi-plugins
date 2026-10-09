@@ -33,8 +33,8 @@ ls -d knowledge scripts && ls knowledge/academy-profile.md knowledge/source-blog
 ## 1. 입력 수집과 모드 결정
 
 1. `knowledge/academy-profile.md`를 읽는다 — 학원정보 표, "## 꼭 지켜야 할 점", "## 금칙어"(백틱 단어 전부), "## 홍보/정보 비율".
-2. `knowledge/source-blogs.json`에서 `design_references[]`(각 `blogId`, `logNo`, `url`, `why`)와 `own_blog`(`blogId`, `categories.info`)를 읽는다.
-   레퍼런스 번호 n은 배열 순서(1부터)다.
+2. `knowledge/source-blogs.json`에서 `design_references[]`(각 `blogId`, `logNo`, `url`, `why`, 선택 `role`)와 `own_blog`(`blogId`, `categories.info`)를 읽는다.
+   `role: "own-style"` 항목(자기 글 — 겉모습·구조·분량의 기준)은 **레퍼런스 0**이고 측정 파일은 `own-<logNo>`다. 나머지 레퍼런스 번호 n은 배열 순서(1부터)다.
 3. 모드 결정:
    - `knowledge/design-system.md`가 **없으면 → 생성 모드**.
    - **있으면 → 갱신 모드**. 순서가 고정이다:
@@ -60,7 +60,7 @@ else echo "생성 모드"; fi
 `blogId, logNo, title, chars, paragraphs, headings, images, bold_runs, bold_lines, quotes, links_out, links_naver_blog, oglinks`.
 (`headings`는 fs24/fs19 글씨 또는 sectionTitle 문단만 센다 — 굵은 줄로 만든 소제목은 `bold_lines`에 들어간다. 3단계에서 보정한다.)
 
-- 레퍼런스: `design_references` 전부 → `work/design-system/ref-<n>-<blogId>.json`(원본 JSON)과 `ref-<n>-<blogId>.md`(markdown만).
+- 레퍼런스: `design_references`(`own-style` 제외) → `work/design-system/ref-<n>-<blogId>.json`(원본 JSON)과 `ref-<n>-<blogId>.md`(markdown만). `own-style` 레퍼런스 0 → `own-<logNo>.{json,md}`(최신 10편에 없어도 측정).
 - 자기 블로그: `python3 scripts/fetch_posts.py --rss <own_blog.blogId>`에서 `category == own_blog.categories.info`("클라크중장비운전학원")인 글을
   `date` 내림차순 **최신 10개** → 각각 fetch_post → `work/design-system/own-<logNo>.json`, `own-<logNo>.md`.
   RSS에 해당 카테고리 글이 10개 미만이면 `python3 scripts/fetch_posts.py --all <own_blog.blogId>`로 다시 걸러 채운다. 그래도 모자라면 있는 만큼만 쓰고 개수를 보고에 적는다.
@@ -74,7 +74,8 @@ ONLY = os.environ.get("ONLY", "all")
 D = "work/design-system"; os.makedirs(D, exist_ok=True)
 src = json.load(open("knowledge/source-blogs.json", encoding="utf-8"))
 own = src["own_blog"]; own_id = own["blogId"]; own_cat = own["categories"]["info"]
-jobs = [(r["blogId"], r["logNo"], f"ref-{i}-{r['blogId']}") for i, r in enumerate(src["design_references"], 1)] if ONLY in ("ref", "all") else []
+refs = [r for r in src["design_references"] if r.get("role") != "own-style"]
+jobs = [(r["blogId"], r["logNo"], f"ref-{i}-{r['blogId']}") for i, r in enumerate(refs, 1)] if ONLY in ("ref", "all") else []
 
 def posts(flag):
     out = subprocess.run(["python3", "scripts/fetch_posts.py", flag, own_id], capture_output=True, text=True)
@@ -85,6 +86,9 @@ if ONLY in ("own", "all") and len(mine) < 10:
     mine += [p for p in posts("--all") if p["category"] == own_cat and p["logNo"] not in seen]
 mine = sorted(mine, key=lambda p: p["date"], reverse=True)[:10]
 jobs += [(own_id, p["logNo"], f"own-{p['logNo']}") for p in mine]
+if ONLY in ("own", "all"):  # 레퍼런스 0(own-style)은 최신 10편 밖이어도 측정
+    jobs += [(r["blogId"], r["logNo"], f"own-{r['logNo']}") for r in src["design_references"]
+             if r.get("role") == "own-style" and r["logNo"] not in {p["logNo"] for p in mine}]
 
 failed = []
 for blog, log, stem in jobs:
@@ -228,10 +232,18 @@ PY
 
 ## 4. 메모 → 측정값 → 규칙 추적표 (부록 A 초안)
 
-`design_references`의 `why`를 의미 단위 조각으로 나눈다. 현재 레퍼런스 4개의 기본 쪼개기(**이 10조각을 전부 덮어야 한다**):
+`design_references`의 `why`를 의미 단위 조각으로 나눈다. 현재 레퍼런스 0~4의 기본 쪼개기(**이 17조각을 전부 덮어야 한다**).
+`role: own-style` 레퍼런스 0은 메모가 "구조·모습 전체"이므로 각 조각을 `own-<logNo>.md`의 **관찰 메모(구조 사실)** + lint 세는 법으로 환산한 수치로 댄다:
 
 | 레퍼런스 | 메모 조각 | 대응 측정값(measurements.md 열) | 들어갈 절 |
 |---|---|---|---|
+| 0 pajuclark | 목차 | 관찰 메모(목차 절·구분선 위치) | ③ |
+| 0 pajuclark | 번호 소제목 | headings, 소제목(수동)(목차·문의 제외 환산), 소제목당 글자수 | ③, ④ |
+| 0 pajuclark | 표·이모지 목록 | 관찰 메모(표 수·이모지 줄·💡 줄), bold_runs/1000자, quotes | ③, ④ |
+| 0 pajuclark | (구조·모습) 절 끝 이미지 | images(표지·학원소개 제외 환산), 이미지당 글자수, 관찰 메모(이미지 위치·캡션) | ④, ⑤ |
+| 0 pajuclark | FAQ | 관찰 메모(FAQ 절·문답 수) | ③, ⑥ |
+| 0 pajuclark | 학원소개 이미지·지도·해시태그 | 관찰 메모(끝 블록 순서·해시태그 수) | ⑤, ⑥ |
+| 0 pajuclark | (이랑 결정) 합니다체 | 해요체 비율(참고), ② 예시 문장 | ② |
 | 1 wati08 | 구성이 보기 좋다 | 소제목(수동), 구조 유형, 관찰 메모 | ③ |
 | 1 wati08 | 강조 부분 음영/굵게로 눈에 띔 | bold_runs/1000자, bold_lines, quotes | ④ |
 | 1 wati08 | 글 끝에 자기 블로그 연결 링크 2~3개 | 끝부분 관련글 링크 수, links_naver_blog | ⑥ |
@@ -243,7 +255,7 @@ PY
 | 4 rojisu0820 | 글과 사진 비율 좋음 | 이미지당 글자수 | ④ |
 | 4 rojisu0820 | 중간중간 지게차 작업 사진 | images, 관찰 메모(작업 사진 위치) | ⑤ |
 
-(위 표는 10행 — 3번 "사진:글 비율"과 4번 "글과 사진 비율"은 같은 측정값을 쓰지만 행은 따로 둔다.)
+(위 표는 17행 — 3번 "사진:글 비율"과 4번 "글과 사진 비율"은 같은 측정값을 쓰지만 행은 따로 둔다.)
 `design_references`가 바뀌었으면(추가·교체) 같은 방식으로 새 why를 쪼개 행을 더한다. why에 없는 내용으로 행을 만들지 않는다.
 
 각 행에 (a) **그 레퍼런스의 실제 수치**(예: "ref-3 이미지당 글자수 180, 소제목(수동) 7, 이미지 9") 또는 숫자가 없는 조각이면 관찰 메모의 구조 사실,
@@ -260,6 +272,7 @@ PY
 메모 출처 레퍼런스가 둘 이상이면 그 값들의 범위를 쓴다(예: 레퍼런스 3·4의 이미지당 글자수 253·280). 중앙값으로 메모 출처 값을 희석하지 않는다 — 다른 레퍼런스는 그 특징 때문에 뽑힌 글이 아니다.
 레퍼런스 값을 측정할 수 없으면(예: 음영 배경색은 fetch_post가 추출하지 못함) 근거 괄호에 "측정 불가"와 대체 방법을 쓴다.
 **자기 글 중앙값(O)과 메모 없는 쪽 중앙값은 공식에 넣지 않고 근거 괄호에만 병기한다**(자기 글이 짧아도 규칙이 끌려 내려가지 않게).
+**레퍼런스 0(`own-style`)이 있으면** 구조·분량 특징(글자수·소제목·이미지·이미지당 글자수·굵게)의 M은 레퍼런스 0이며, 아래 공식의 R·M 자리에 넣는다. 다른 레퍼런스 메모와 겹치면 레퍼런스 0이 우선이다. M은 lint 세는 법으로 환산한다(글자수 = 목차 절·해시태그 줄·`ㅤ` 제외, 소제목 = 목차·문의 제외, 이미지 = 표지·학원소개 제외). 굵게는 기본 허용폭(하한 내림(M×0.7), 상한 올림(M×1.3))을 쓴다(아래 굵게 공식은 강조 과다 레퍼런스 1용 상한식).
 모든 수치 뒤 괄호에 근거를 쓴다: `(레퍼런스 중앙값 2,900자, 자기 글 중앙값 1,400자 → R×0.7 내림 → 하한 2,000)`.
 
 > **계수는 조정 가능한 기본값이다.** 이랑 검토에서 바꾸면 이 표, ④의 근거 괄호, 부록 A의 해당 행을 **함께** 갱신한다.
@@ -269,16 +282,16 @@ PY
 | 본문 글자수 하한 | max(1500, 100단위 내림(R_chars × 0.7)) | 1500 = `lint_post.py` 기본 `min_chars`(바닥값). ×0.7 = 레퍼런스 중앙값 허용폭(플러그인 기본값) | `min_chars` |
 | 본문 글자수 상한 | max(min_chars + 1000, 100단위 올림(R_chars × 1.4)) | ×1.4 = 허용폭 상단(플러그인 기본값). +1000 = 범위가 너무 좁아지지 않게 하는 최소 폭(플러그인 기본값) | `max_chars` |
 | 소제목 수 | min_h2 = 4, max_h2 = max(7, 반올림(R_소제목(수동))) | 4~7 = ③ 소제목 규칙 범위(brief 설계값)이자 `lint_post.py` 기본값. 하한 4는 레퍼런스 3 "소제목 여러 개" | `min_h2`, `max_h2` |
-| 이미지 수 하한 | max(3, min_h2 + 1, 올림(min_chars ÷ 이미지당 글자수 상한)) | 3 = `lint_post.py` 기본 `min_images`. min_h2 + 1 = 소제목마다 1장 + 커버(레퍼런스 3 메모). 글자수 항 = 하한 분량에서도 비율 상한을 지키는 장수 | `min_images` |
+| 이미지 수 하한 | max(3, min_h2 + 1, 올림(min_chars ÷ 이미지당 글자수 상한)) | 3 = `lint_post.py` 기본 `min_images`. min_h2 + 1 = 절마다 1장 + 1(레퍼런스 3 메모; 표지·학원소개는 이미지 수에서 제외). 글자수 항 = 하한 분량에서도 비율 상한을 지키는 장수 | `min_images` |
 | 권장 이미지 수(문장 규칙) | 올림(본문 글자수 ÷ 이미지당 글자수 목표), 단 min_images 이상 | 레퍼런스 3·4 "사진:글 비율"을 그대로 옮김(계수 없음) | — |
 | 이미지당 글자수 | 목표 ≤ max(M_3, M_4)(메모 출처 레퍼런스 3·4), 상한 = 목표 × 1.5 | ×1.5 = 허용폭(플러그인 기본값). R은 근거 괄호에 참고로만 | — |
 | 소제목당 글자수 | 10단위 반올림(R_소제목당글자수 × 0.7) ~ (× 1.3) | ×0.7~×1.3 = 허용폭(플러그인 기본값) | — |
-| 강조(굵게) 빈도 | 1000자당 bold_runs: 상한 = 내림(M_1 × 0.7), 하한 = 다른 레퍼런스 중 굵게를 쓰는 글의 최댓값 올림(없으면 반올림(M_1 × 0.3)) | 근거 메모 = 레퍼런스 1(M_1). ×0.7 = 허용폭(플러그인 기본값). 2026-10 리뷰 확정: 6~12 | — |
-| 음영 인용 | 글당 1 ~ max(1, 절 끝 요약 박스 수), `>` 인용, 절 끝 요약·주의사항에만 | 레퍼런스 1 "음영"은 측정 불가 → naver-blog-cli가 지원하는 `>` 인용으로 대체. quotes 열은 인용구 소제목이 섞이므로 그대로 쓰지 않는다(레퍼런스 2 요약 박스 3 → 1~3) | — |
+| 강조(굵게) 빈도 | 1000자당 bold_runs: 상한 = 내림(M_1 × 0.7), 하한 = 다른 레퍼런스 중 굵게를 쓰는 글의 최댓값 올림(없으면 반올림(M_1 × 0.3)) | 근거 메모 = 레퍼런스 1(M_1). ×0.7 = 허용폭(플러그인 기본값). 레퍼런스 0이 있으면 내림(M_0×0.7)~올림(M_0×1.3) — v0.3: 4~9 | — |
+| 음영 인용 | 글당 0 ~ max(1, 절 끝 요약 박스 수), `>` 인용, 절 끝 요약·주의사항에만. 레퍼런스 0이 있으면 0~1(v0.3) | 레퍼런스 1 "음영"은 측정 불가 → naver-blog-cli가 지원하는 `>` 인용으로 대체. quotes 열은 인용구 소제목이 섞이므로 그대로 쓰지 않는다(레퍼런스 2 요약 박스 3 → 1~3; v0.3은 레퍼런스 0 quotes 0 → 0~1) | — |
 | 관련글 링크 | 2~3개 | 레퍼런스 1 메모 원문 수치. ref-1 "끝부분 관련글 링크 수"를 근거로 병기 | — |
 | 출처 각주 | 2 | `lint_post.py` 기본 `min_sources`. 레퍼런스와 무관 — "지어내기 금지" 원칙 | `min_sources` |
 | 태그 수 | 5~10 | `lint_post.py` 기본값. `knowledge/naver-seo-checklist.md`에 태그 기준이 있으면 그 값 | `tags_min`, `tags_max` |
-| 톤 | **정성 규칙**: "주 종결어미 = 해요체" 등 + 자기 글 실제 예시 문장(logNo) | 숫자(해요체 비율·평균 문장 길이 참고값)는 근거 괄호에만. 숫자 목표를 규칙으로 쓰지 않는다 | — |
+| 톤 | **정성 규칙**: "주 종결어미 = 합니다체"(이랑 결정 2026-10-09) 등 + 자기 글 실제 예시 문장(logNo) | 숫자(해요체 비율·평균 문장 길이 참고값)는 근거 괄호에만. 숫자 목표를 규칙으로 쓰지 않는다 | — |
 | 정보:홍보 | 정보성 3 : 홍보 1 이하, 최근 4편 중 홍보 ≤ 1편 | academy-profile.md "## 홍보/정보 비율" 값. "4편" = 3:1 비율의 한 주기 | — |
 
 R 값이 `-`(분모 0 등)인 항목은 계산하지 말고 기본값(lint 기본값 또는 위 고정값)을 쓴 뒤 "이랑 검토 요청"에 올린다.
@@ -294,7 +307,7 @@ R 값이 `-`(분모 0 등)인 항목은 계산하지 말고 기본값(lint 기�
 ④ 헤딩 **바로 다음 줄**에 정확히 이 형식으로 한 줄(값은 정수, 5단계 공식 결과, ④ 규칙 문장의 숫자와 동일):
 
 ```
-<!-- lint: min_chars=2000 max_chars=4100 min_h2=4 max_h2=7 min_images=5 min_sources=2 tags_min=5 tags_max=10 -->
+<!-- lint: min_chars=2000 max_chars=4100 min_h2=4 max_h2=7 min_images=5 min_sources=2 tags_min=5 tags_max=10 kw_min_body=3 kw_max_body=8 title_min=20 title_max=40 -->
 ```
 
 (위 숫자는 형식 예시일 뿐이다. 실제 값은 측정에서 계산한다.)
@@ -331,7 +344,7 @@ sec8 = t[t.find("## ⑧"):t.find("## ⑨")]
 print("⑧에 빠진 금칙어:", [w for w in words if w not in sec8] or "없음")
 a = t[t.find("## 부록 A"):t.find("## 부록 B")]
 rows = [l for l in a.splitlines() if l.startswith("|") and not re.match(r"^\|[\s|:-]+\|$", l)][1:]
-print("부록 A 행 수(10 이상이어야 함):", len(rows), "OK" if len(rows) >= 10 else "부족")
+print("부록 A 행 수(17 이상이어야 함):", len(rows), "OK" if len(rows) >= 17 else "부족")
 n = len(re.sub(r"\s", "", t))
 print("문서 공백 제외 글자수:", n, "OK" if n <= 12000 else "경고: 12,000자 초과 — A4 4~6장 목표, 설명을 줄일 것")
 PY
@@ -348,11 +361,12 @@ rm -rf work/design-system/_lintcheck
 
 눈으로 확인할 목록:
 - [ ] ⑧ 금칙어 절에 academy-profile.md 금칙어 **전부**(위 스크립트 "빠진 금칙어: 없음").
-- [ ] ⑦ 변주 축 **4개**(도입부 유형·구조 템플릿·지역 키워드 조합·마무리 CTA) + `type`(축 아님), "소제목 수는 변주 축이 아니다", "최근 5편(work/variation-log.md)과 겹치지 않게"(최근 5줄 각각과 2개 축 이상 다름).
-- [ ] ⑤에 "텍스트 렌더링 금지", "얼굴 클로즈업 금지", "정보성 = AI 허용", "홍보성 = 실사진" 4개 모두.
-- [ ] ⑥에 관련글 링크 **2~3개** + CTA 단락(연락처·지역, 금칙어 언급 금지).
+- [ ] ⑦ 변주 축 **4개**(도입부 유형·구조 템플릿·지역 키워드 조합·제목 지역 `title_region`) + `type`(축 아님), `cta` 축 없음, `title_region` 로테이션(최근 4편에 안 쓰인 첫 수강생 지역), "소제목 수는 변주 축이 아니다", "최근 5편(work/variation-log.md)과 겹치지 않게"(최근 5줄 각각과 2개 축 이상 다름), 로그 7열(`… | region | title_region`).
+- [ ] ⑤에 "텍스트 렌더링 금지"(예외 = 표지 `00-cover.png` 합성 제목, AI 배경엔 글자 없음), "얼굴 클로즈업 금지", "정보성 = AI 허용", "홍보성 = 실사진" 4개 모두 + 본문 이미지 캡션 없음 + 절 끝 배치 + `photos/학원소개.png` 고정 자산(재사용 금지 예외).
+- [ ] ⑥에 관련글 링크 **2~3개** + 고정 마무리 블록 순서(`## 📞 문의 및 수강신청: 031-855-9948` → 학원소개.png → `:::place <장소 검색어>:::` → `**#태그…**`), 줄글 CTA 없음, 장소 검색어는 academy-profile.md 표에서.
+- [ ] ⑧에 출처 형식 규칙(`(출처: URL)` 단독 괄호만, 조항·시행일은 문장 본문에, lint `source_format`, 업로드본에서 제거).
 - [ ] ⑨에 정보성 3 : 홍보 1 비율 + 근거 "최근 4편(variation-log.md의 type 열) 중 홍보 ≤ 1편; 로그가 없으면 gates.md ## 선택의 유형".
-- [ ] ⑦에 `variation:` 기록 키로 `type`(정보|홍보) 포함.
+- [ ] ⑦에 `variation:` 기록 키로 `type`(정보|홍보)·`title_region` 포함.
 - [ ] ④ 규칙 문장의 숫자 = lint 블록의 숫자(키마다 대조).
 - [ ] 부록 A가 **레퍼런스 전부 × why 조각 전부**를 덮음(4단계 표의 행이 모두 있음), 각 행에 실제 수치 또는 관찰 사실.
 - [ ] ② 예시 문장마다 `(logNo)`가 있고 해당 `own-<logNo>.md`에 그 문장이 그대로 있음(`grep -F`로 확인).

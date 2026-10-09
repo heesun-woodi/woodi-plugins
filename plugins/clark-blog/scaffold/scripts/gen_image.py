@@ -5,7 +5,8 @@
     uv run --with google-genai --with pillow scripts/gen_image.py work/posts/001-x/images/image-plan.md
     python3 scripts/gen_image.py <image-plan.md> --dry-run      # 키·패키지 없이 파싱·프롬프트·파일명만 출력
 
-- 표에서 `유형`이 ai인 행만 처리한다(photo 행은 건드리지 않음). 슬롯 번호 = draft-v2.md의 `![슬롯: …]()` 순서.
+- 표에서 `유형`이 ai·cover인 행만 처리한다(photo 행은 건드리지 않음). cover 행은 images/00-bg.png로 저장하고
+  `파일` 칸(images/00-cover.png)은 바꾸지 않는다 — 합성은 scripts/make_cover.py. 슬롯 번호 = draft-v2.md의 `![슬롯: …]()` 순서.
 - 프롬프트 = PROMPT_PREFIX + 표의 프롬프트 + PROMPT_SUFFIX. 두 문자열은
   skills/blog-image-director/references/prompt-patterns.md의 "공통 접두/접미"와 글자 그대로 같아야 한다.
 - 성공한 슬롯은 표의 `파일` 열을 post 폴더 기준 상대경로(images/01-cover.png)로 갱신해 image-plan.md를 다시 쓴다.
@@ -34,7 +35,8 @@ QUOTA_HINT = ("Gemini 이미지 모델은 결제(Billing)가 설정된 Google Cl
 BASE_BACKOFF_SECONDS = 2.0
 # 추정치 — gemini-3-pro-image 2K 단가는 요금 페이지에서 확인(https://ai.google.dev/pricing)
 COST_PER_IMAGE_USD = 0.04
-KINDS = {"ai", "photo"}
+KINDS = {"ai", "photo", "cover"}
+GEN_KINDS = {"ai", "cover"}  # cover = 표지 배경(00-bg.png). 합성은 make_cover.py
 
 # prompt-patterns.md "공통 접두/접미"와 동일하게 유지할 것(tests/test_gen_image.py가 대조).
 PROMPT_PREFIX = ("photorealistic, Korean forklift training yard / warehouse, "
@@ -91,7 +93,7 @@ def parse_plan(text):
                      "kind": get("kind").lower(), "prompt": get("prompt"),
                      "caption": get("caption"), "file": get("file"), "line": i})
         if rows[-1]["kind"] not in KINDS:
-            print(f"경고: 슬롯 {rows[-1]['slot']}의 유형 '{get('kind')}'은 ai/photo가 아니어서 건너뜁니다.", file=sys.stderr)
+            print(f"경고: 슬롯 {rows[-1]['slot']}의 유형 '{get('kind')}'은 ai/photo/cover가 아니어서 건너뜁니다.", file=sys.stderr)
     if idx is None:
         raise ValueError("image-plan.md에서 '| 슬롯 | …' 표 머리를 찾지 못했습니다.")
     return idx, rows
@@ -112,15 +114,15 @@ def parse_only(value):
 
 
 def select_ai_rows(rows, only=None):
-    """ai 행만 고르고 --only로 거른다. only에 ai가 아닌/없는 번호가 있으면 ValueError."""
-    ai = [r for r in rows if r["kind"] == "ai"]
+    """ai·cover 행만 고르고 --only로 거른다. only에 생성 대상이 아닌/없는 번호가 있으면 ValueError."""
+    ai = [r for r in rows if r["kind"] in GEN_KINDS]
     if only is None:
         return ai
     known = {r["slot"]: r["kind"] for r in rows}
     bad = sorted(s for s in only if s not in known)
     if bad:
         raise ValueError("표에 없는 슬롯 번호: " + ", ".join(bad))
-    notai = sorted(s for s in only if known[s] != "ai")
+    notai = sorted(s for s in only if known[s] not in GEN_KINDS)
     if notai:
         raise ValueError("ai 슬롯이 아닙니다(photo는 생성 대상 아님): " + ", ".join(notai))
     return [r for r in ai if r["slot"] in only]
@@ -137,6 +139,8 @@ def slug_for(purpose):
 
 def target_name(row):
     """이미 `파일` 열에 .png 경로가 있으면 그 파일명을 유지(재생성 시 같은 파일 덮어쓰기)."""
+    if row["kind"] == "cover":
+        return f"{row['slot']}-bg.png"  # `파일` 칸(00-cover.png)은 make_cover.py의 합성 결과 — 배경은 따로 저장
     f = row["file"].strip("` ")
     if f.lower().endswith(".png"):
         return os.path.basename(f)
@@ -314,7 +318,8 @@ def main(argv=None):
     if a.dry_run:
         for r in targets:
             out = os.path.join(out_dir, target_name(r))
-            print(f"\n[{r['slot']}] 목적: {r['purpose']} | 캡션: {r['caption']}")
+            tag = " (cover: 표지 배경 → make_cover.py로 합성)" if r["kind"] == "cover" else ""
+            print(f"\n[{r['slot']}] 목적: {r['purpose']}{tag} | 캡션: {r['caption']}")
             print(f"  파일: {os.path.relpath(out, post_dir)}")
             print(f"  프롬프트: {build_prompt(r['prompt'])}")
         print(f"\n(dry-run) API 호출 없음. 예상 비용(추정치): 약 ${COST_PER_IMAGE_USD * len(targets):.2f}"
@@ -360,7 +365,8 @@ def main(argv=None):
                 fail.append(r["slot"])
                 continue
             rel = os.path.relpath(out, post_dir)
-            updates[r["line"]] = rel
+            if r["kind"] != "cover":  # cover 행의 `파일` 칸은 00-cover.png 그대로 둔다
+                updates[r["line"]] = rel
             ok.append(r["slot"])
             persist()  # 슬롯마다 저장 — 중간에 끊겨도 완료분은 남는다
             print(f"[OK] {r['slot']} → {rel} ({res})")

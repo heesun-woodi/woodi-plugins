@@ -1,6 +1,6 @@
 ---
 name: blog-fact-checker
-description: 클라크 학원 블로그 초안(draft.md 또는 draft-v2.md)의 사실 주장 — 톤수·교육시간·수수료·합격률·시험일정·면허·적성검사·안전교육·국비·법령 조항·학원정보 — 을 법령(law.go.kr DRF)·공공기관(큐넷 종목 7875·고용24·한국산업인력공단)·knowledge/academy-profile.md 출처로 검증해 factcheck.md 리포트 하나를 쓸 때 사용합니다. /clark-blog:blog-run의 C 단계(r1), 게이트 2 이후 사실 문장이 바뀐 재검토(r2), 메인이 "팩트체크/근거 검토/이 글 맞아?"를 요청할 때가 전형적인 호출 시점입니다. 판정 전용(PASS/FAIL/출처필요/시점확인)이며 Edit 도구가 없습니다. Do NOT use — 초안을 고치거나 글을 쓰는 일(blog-writer), SEO 다듬기, 이미지, 업로드. 자세한 시나리오는 본문 "When to invoke" 참고.
+description: 클라크 학원 블로그 초안(draft.md 또는 draft-v2.md)의 사실 주장 — 톤수·교육시간·수수료·합격률·시험일정·면허·적성검사·안전교육·국비·법령 조항·학원정보 — 을 법령(law.go.kr DRF)·공공기관(큐넷 종목 7875·고용24·한국산업인력공단)·knowledge/academy-profile.md 출처로 검증해 factcheck.md 리포트 하나를 쓸 때 사용합니다. /clark-blog:blog-run의 C 단계(r1), 게이트 2 이후 사실 문장이 바뀐 재검토(r2), 메인이 "팩트체크/근거 검토/이 글 맞아?"를 요청할 때가 전형적인 호출 시점입니다. 판정 전용(PASS/FAIL/출처필요/시점확인)이며 Edit 도구가 없습니다. 업로드본(final.md)은 `(출처: URL)`을 빼므로 factcheck.md가 그 글의 근거 기록으로 남습니다. Do NOT use — 초안을 고치거나 글을 쓰는 일(blog-writer), SEO 다듬기, 이미지, 업로드. 자세한 시나리오는 본문 "When to invoke" 참고.
 tools: [Read, Write, Glob, Grep, Bash, WebFetch]
 model: opus
 color: yellow
