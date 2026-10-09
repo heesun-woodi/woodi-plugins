@@ -2,9 +2,10 @@
 # naver_upload.sh — final.md → 네이버 블로그 "임시저장"까지만 (발행은 사람).
 # 사용: naver_upload.sh <posts/NNN-slug/final.md> [--blog-id pajuclark] [--category "이름"(frontmatter에 category가 없을 때의 대체값)] [--dry-run]
 # 작업 폴더(cwd)에서 실행한다 (세션 파일 playwright-state/storage_state.json 이 cwd 기준).
-# 동작: lint --stage upload → 이중 검사 → create-draft-from-folder (표지 images/00-cover.png 를 대표이미지로) → list-drafts 확인.
+# 동작: lint --stage upload → 이중 검사 → 세션·계정 확인 → create-draft-from-folder (표지 images/00-cover.png 를 대표이미지로) → list-drafts 확인.
 # 종료 코드: 0 성공 | 2 사용 오류 | 10 lint 실패 | 11 이중 검사 실패 | 12 이미지 문제(표지 없음·절대경로 아님·파일 없음)
-#            20 세션 없음/만료 | 30 create-draft-from-folder 실패 | 31 list-drafts에서 제목 확인 불가
+#            20 세션 없음/만료 | 21 로그인 계정이 --blog-id 블로그에 글을 쓸 수 없음(다른 계정 세션)
+#            30 create-draft-from-folder 실패 | 31 list-drafts에서 제목 확인 불가
 # naver-blog-cli 는 실패해도 exit 0 이므로 종료 코드가 아니라 stdout 문구로 판정한다.
 set -u
 export NAVER_BLOG_READONLY=1   # 발행·삭제 서브커맨드를 CLI에서 제거 — 임시저장까지만
@@ -20,7 +21,7 @@ while [ $# -gt 0 ]; do
     --blog-id) [ $# -ge 2 ] || { echo "오류: $1 값이 필요합니다." >&2; exit 2; }; BLOG_ID="$2"; shift 2 ;;
     --category) [ $# -ge 2 ] || { echo "오류: $1 값이 필요합니다." >&2; exit 2; }; CATEGORY_OPT="$2"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
-    -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
     -*) echo "오류: 알 수 없는 옵션: $1" >&2; exit 2 ;;
     *) FINAL="$1"; shift ;;
   esac
@@ -167,6 +168,25 @@ case "$SESS" in
   *) die 20 "네이버 세션을 사용할 수 없습니다: $(printf '%s' "$SESS" | head -n1)
 작업 폴더에서 터미널로 직접 로그인하세요 (\"로그인 상태 유지\" 체크):
   NAVER_STATE=\"\$PWD/playwright-state/storage_state.json\" \"\$(uv tool dir)/naver-blog-cli/bin/python\" ~/naver-blog-cli/login_setup.py" ;;
+esac
+
+# 2b) 계정 확인 — check-session 은 다른 계정 세션이어도 "글쓰기 가능"으로 통과한다(글쓰기 화면이 그 계정
+#     블로그 홈으로 리다이렉트돼도 #mainFrame 이 붙으므로). naver-blog-cli 의 python 으로 글쓰기 화면 URL 의
+#     블로그 주인을 본다. 글은 쓰지 않는다.
+LOGIN_HINT="작업 폴더에서 터미널로 ${BLOG_ID} 블로그 계정으로 직접 로그인하세요 (\"로그인 상태 유지\" 체크):
+  NAVER_STATE=\"\$PWD/playwright-state/storage_state.json\" \"\$(uv tool dir)/naver-blog-cli/bin/python\" ~/naver-blog-cli/login_setup.py"
+CLI_PY="$(uv tool dir 2>/dev/null)/naver-blog-cli/bin/python"
+if ! command -v uv >/dev/null 2>&1 || [ ! -x "$CLI_PY" ]; then
+  die 20 "계정 확인용 python($CLI_PY)을 찾을 수 없습니다 — naver-blog-cli 를 uv tool 로 설치했는지 /clark-blog:blog-setup 으로 확인하세요."
+fi
+ACCT="$("$CLI_PY" "$HERE/check_blog_account.py" "$BLOG_ID" 2>&1)"; ACCT_RC=$?
+case "$ACCT_RC" in
+  0) log "계정 확인 | $(printf '%s' "$ACCT" | tail -n1)" ;;
+  21) die 21 "로그인한 계정이 ${BLOG_ID} 블로그에 글을 쓸 수 없음 — 그 블로그 계정으로 login_setup.py 다시 실행
+  확인 결과: $(printf '%s' "$ACCT" | tail -n1)
+$LOGIN_HINT" ;;
+  *) die 20 "계정 확인 실패(exit $ACCT_RC): $(printf '%s' "$ACCT" | tail -n1)
+$LOGIN_HINT" ;;
 esac
 
 # 6) 임시저장 (create-draft-from-folder: 표지를 본문 맨 앞에 넣고 대표 지정)

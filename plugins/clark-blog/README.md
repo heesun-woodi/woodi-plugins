@@ -140,7 +140,7 @@ knowledge/                      # 정본. 여기서 직접 고친다
   naver-seo-checklist.md        # 네이버 SEO 필수/권장 항목
 scripts/
   fetch_posts.py  fetch_post.py  dedupe_check.py
-  lint_post.py  gen_image.py  make_cover.py  build_final.py  naver_upload.sh
+  lint_post.py  gen_image.py  make_cover.py  build_final.py  naver_upload.sh  check_blog_account.py
 photos/                         # 학원 실사진(커밋 제외). 학원소개.png = 마무리 블록 고정 이미지
 playwright-state/               # 로그인 세션(로그인 뒤 생성, 커밋 금지)
 work/
@@ -185,7 +185,8 @@ work/
 | 10 | `lint_post.py --stage upload` 실패 | 출력된 FAIL 항목 수정(본문은 writer 재개, 이미지·표지는 Step 3/4, `closing_block`·`h2_spacing` 같은 빌더 항목은 중단·보고) |
 | 11 | 이중 검사 실패(금칙어·`[[`·빈 이미지·`[출처 필요]`·`출처:`/캡션 잔존·`:::place` 없음) | 텍스트는 writer 재개, 출처·캡션·마무리 블록은 `build_final.py` 재실행 |
 | 12 | 표지 `images/00-cover.png` 없음, 또는 이미지 경로가 절대경로가 아니거나 파일 없음 | 표지는 `make_cover.py`로 만들고, 경로는 Step 4(`build_final.py`) 재실행 |
-| 20 | 세션 없음/만료 또는 `naver-blog-cli` 없음 | `/clark-blog:blog-setup`의 로그인 절차 |
+| 20 | 세션 없음/만료 또는 `naver-blog-cli` 없음, 계정 확인 실패 | `/clark-blog:blog-setup`의 로그인 절차 |
+| 21 | 로그인한 계정이 대상 블로그(`--blog-id`)에 글을 쓸 수 없음 — 다른 계정 세션 | 대상 블로그 계정으로 `login_setup.py` 다시 실행(아래 "다른 계정으로 로그인돼 있을 때") |
 | 30 | `create-draft-from-folder` 실패 | 출력 문구 확인(`넣기 전에 걸린 것` = 이미지 없음·10MB, 에디터 변경, 세션 만료). 중복 임시저장이 생겼는지 확인 후 재시도는 1회 |
 | 31 | 저장은 됐으나 목록에서 제목 확인 불가 | 네이버 → 글쓰기 → 임시저장 글에서 직접 확인 |
 
@@ -200,6 +201,8 @@ work/
 **이미지 생성이 429(쿼터 초과)로 멈출 때.** `gen_image.py`가 `APIError 429`와 함께 남은 슬롯을 중단했다면, Gemini 이미지 모델을 쓸 수 없는 키입니다. https://aistudio.google.com/apikey 에서 그 키의 Google Cloud 프로젝트에 결제(Billing)가 설정돼 있는지 확인하세요. 무료 키는 기다려도 풀리지 않습니다. 결제를 설정한 뒤 Step 3(이미지)부터 다시 진행합니다.
 
 **세션 만료.** 몇 시간 뒤 글쓰기만 로그인 페이지로 바뀌거나 공인 IP가 바뀌면 세션이 풀립니다. "로그인 상태 유지"를 체크하지 않은 경우가 가장 흔합니다. 터미널에서 작업 폴더로 이동해 위 로그인 명령(`login_setup.py`)을 다시 실행하고, 로그인이 끝나면 `/clark-blog:blog-run resume <NNN>`으로 업로드만 이어갑니다. 세션이 없을 때 `/clark-blog:blog-run`은 Step 4까지 진행하고 업로드만 미룹니다.
+
+**다른 계정으로 로그인돼 있을 때 (exit 21 · `session: WRONG_ACCOUNT`).** 세션 파일(`playwright-state/storage_state.json`)이 테스트 계정 등 다른 계정의 것이면 `naver-blog-cli check-session`은 "글쓰기 가능"으로 통과하지만, 실제 글쓰기 화면은 그 계정의 블로그로 넘어가 임시저장이 `…을 못 찾음`으로 실패합니다. 그래서 업로드 전에 `scripts/check_blog_account.py`가 글쓰기 화면이 대상 블로그로 열리는지 확인합니다(글은 쓰지 않음). 걸리면 터미널에서 작업 폴더로 이동해 위 로그인 명령을 **대상 블로그 계정으로** 다시 실행하세요(세션 파일이 새 계정 것으로 바뀝니다).
 
 **네이버가 에디터를 개편했을 때.** `naver-blog-cli`가 `…을 못 찾음`을 계속 내면 CLI의 셀렉터가 낡은 것입니다. 이 플러그인은 셀렉터·Playwright 코드를 새로 쓰지 않으므로 `naver-blog-cli`의 업데이트를 기다리는 것이 기본입니다. 급할 때는 이랑 승인 아래 aside(AI 브라우저)에 `final.md`와 `images/`를 주고 "임시저장까지만, 발행 금지"로 수동 지시하는 폴백이 있습니다(로그인·2단계 인증은 이 경우에도 이랑이 합니다).
 

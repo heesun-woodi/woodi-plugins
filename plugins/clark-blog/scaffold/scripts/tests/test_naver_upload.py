@@ -42,6 +42,20 @@ case "$1" in
 esac
 exit 0
 """
+# `uv tool dir` -> $STUB_UVDIR ; $STUB_UVDIR/naver-blog-cli/bin/python 은 check_blog_account.py 대역
+UV_STUB = """#!/usr/bin/env bash
+[ "$1 $2" = "tool dir" ] && echo "$STUB_UVDIR"
+exit 0
+"""
+PY_STUB = """#!/usr/bin/env bash
+echo "account-check $(basename "$1") $2" >> "$STUB_LOG"
+echo "DeprecationWarning: stderr 소음이 결과 줄보다 먼저 나올 수 있다" >&2
+case "${STUB_ACCOUNT:-ok}" in
+  ok) echo "계정 확인: $2 블로그 글쓰기 가능 — 글쓰기 화면 https://blog.naver.com/$2?Redirect=Write"; exit 0 ;;
+  other) echo "로그인한 계정이 $2 블로그에 글을 쓸 수 없음 — 글쓰기 화면이 https://blog.naver.com/iloveccmel 로 이동 (로그인 계정의 블로그: iloveccmel)"; exit 21 ;;
+  *) echo "계정 확인 실패 — TimeoutError: x"; exit 22 ;;
+esac
+"""
 
 
 class NaverUploadTest(unittest.TestCase):
@@ -61,6 +75,13 @@ class NaverUploadTest(unittest.TestCase):
         with open(stub, "w", encoding="utf-8") as f:
             f.write(STUB)
         os.chmod(stub, 0o755)
+        self.uvdir = os.path.join(r, "uvtools")
+        os.makedirs(os.path.join(self.uvdir, "naver-blog-cli", "bin"))
+        for path, body in ((os.path.join(self.bin, "uv"), UV_STUB),
+                           (os.path.join(self.uvdir, "naver-blog-cli", "bin", "python"), PY_STUB)):
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(body)
+            os.chmod(path, 0o755)
         self.post = os.path.join(r, "work", "posts", "001-test")
         os.makedirs(self.post)
         self.log = os.path.join(r, "stub.log")
@@ -106,7 +127,8 @@ class NaverUploadTest(unittest.TestCase):
 
     def run_script(self, *args, **env):
         e = dict(os.environ, PATH=self.bin + os.pathsep + os.environ["PATH"], STUB_LOG=self.log,
-                 STUB_BODY=self.sbody, STUB_TITLE=TITLE, TMPDIR=self.root)
+                 STUB_BODY=self.sbody, STUB_TITLE=TITLE, TMPDIR=self.root,
+                 STUB_UVDIR=self.uvdir)
         e.update(env)
         return subprocess.run(["bash", os.path.join(self.root, "scripts", "naver_upload.sh"), self.final, *args],
                               cwd=self.root, env=e, capture_output=True, text=True)
@@ -175,6 +197,7 @@ class NaverUploadTest(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn("세션 확인 생략", p.stdout)
         self.assertNotIn("check-session", self.stub_calls())
+        self.assertNotIn("account-check", self.stub_calls())
 
     def test_dry_run_image_exit_12_without_login(self):
         self.write_final(self.sample(img="https://example.com/a.png"))
@@ -197,12 +220,42 @@ class NaverUploadTest(unittest.TestCase):
         self.assertIn("login_setup.py", p.stderr)
         self.assertNotIn("create-draft-from-folder", self.stub_calls())
 
+    def test_account_mismatch_exit_21(self):
+        # 2026-10-09: 다른 계정(iloveccmel) 세션이 check-session 은 통과했지만 글쓰기 화면이 그 블로그로 리다이렉트
+        p = self.run_script(STUB_ACCOUNT="other")
+        self.assertEqual(p.returncode, 21, p.stderr)
+        self.assertIn("로그인한 계정이 pajuclark 블로그에 글을 쓸 수 없음 — 그 블로그 계정으로 login_setup.py 다시 실행", p.stderr)
+        self.assertIn("확인 결과: 로그인한 계정이 pajuclark 블로그에 글을 쓸 수 없음 — 글쓰기 화면이 https://blog.naver.com/iloveccmel", p.stderr)
+        self.assertIn("pajuclark 블로그 계정으로 직접 로그인", p.stderr)
+        calls = self.stub_calls()
+        self.assertIn("account-check check_blog_account.py pajuclark", calls)
+        self.assertNotIn("create-draft-from-folder", calls)
+        self.assertNotIn("list-drafts", calls)
+        with open(os.path.join(self.post, "upload.log"), encoding="utf-8") as f:
+            self.assertIn("exit 21", f.read())
+
+    def test_account_check_error_exit_20(self):
+        p = self.run_script(STUB_ACCOUNT="error")
+        self.assertEqual(p.returncode, 20, p.stderr)
+        self.assertIn("계정 확인 실패(exit 22)", p.stderr)
+        self.assertNotIn("create-draft-from-folder", self.stub_calls())
+
+    def test_account_check_without_cli_python_exit_20(self):
+        os.remove(os.path.join(self.uvdir, "naver-blog-cli", "bin", "python"))
+        p = self.run_script()
+        self.assertEqual(p.returncode, 20, p.stderr)
+        self.assertIn("계정 확인용 python", p.stderr)
+        self.assertNotIn("create-draft-from-folder", self.stub_calls())
+
     def test_success_flow(self):
         p = self.run_script("--blog-id", "myblog")
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn("임시저장 완료", p.stdout)
         calls = self.stub_calls()
         self.assertIn("id=myblog", calls)
+        self.assertIn("account-check check_blog_account.py myblog", calls)
+        self.assertLess(calls.index("check-session"), calls.index("account-check"))
+        self.assertLess(calls.index("account-check"), calls.index("create-draft-from-folder"))
         self.assertIn("create-draft-from-folder ", calls)
         self.assertIn("--markdown-file body.md", calls)
         self.assertIn("--title=" + TITLE, calls)

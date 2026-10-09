@@ -65,7 +65,18 @@ BLOG_ID=pajuclark
   BLOG_ID=$(python3 -c "import json;o=json.load(open('knowledge/source-blogs.json')).get('own_blog');print((o.get('blogId') if isinstance(o,dict) else o) or 'pajuclark')" 2>/dev/null || echo pajuclark)
 if command -v naver-blog-cli >/dev/null 2>&1; then
   SESS=$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli check-session 2>&1)
-  if echo "$SESS" | grep -q '세션 정상' && echo "$SESS" | grep -q '글쓰기 가능'; then echo "session: OK (blogId=$BLOG_ID)"
+  if echo "$SESS" | grep -q '세션 정상' && echo "$SESS" | grep -q '글쓰기 가능'; then
+    # check-session 은 다른 계정 세션도 통과시킨다 → 글쓰기 화면이 $BLOG_ID 블로그로 열리는지 확인 (헤드리스, 글은 안 씀)
+    CLI_PY="$(uv tool dir 2>/dev/null)/naver-blog-cli/bin/python"
+    CHK="${CLAUDE_PLUGIN_ROOT}/scaffold/scripts/check_blog_account.py"
+    if [ -x "$CLI_PY" ] && [ -f "$CHK" ]; then
+      ACCT=$("$CLI_PY" "$CHK" "$BLOG_ID" 2>&1); ACCT_RC=$?
+      case "$ACCT_RC" in
+        0) echo "session: OK (blogId=$BLOG_ID, 계정 확인됨)" ;;
+        21) echo "session: WRONG_ACCOUNT (blogId=$BLOG_ID) — $(echo "$ACCT" | tail -1)" ;;
+        *) echo "session: LOGIN_NEEDED (blogId=$BLOG_ID) — 계정 확인 실패: $(echo "$ACCT" | tail -1)" ;;
+      esac
+    else echo "session: LOGIN_NEEDED (blogId=$BLOG_ID) — 계정 확인 불가(naver-blog-cli 의 uv tool python 또는 $CHK 없음 — uv tool install 로 다시 설치)"; fi
   elif echo "$SESS" | grep -q '확인 실패:'; then echo "session: LOGIN_NEEDED (blogId=$BLOG_ID) — $(echo "$SESS" | head -1) (로그인과 무관한 원인일 수 있음 — 예: Chromium 미설치)"
   else echo "session: LOGIN_NEEDED (blogId=$BLOG_ID) — $(echo "$SESS" | head -1)"; fi
 else echo "session: SKIPPED (naver-blog-cli 없음)"; fi
@@ -102,7 +113,7 @@ for f in knowledge/*.md; do grep -q 'Task [0-9]*에서 채움' "$f" && cp "${CLA
 ## 4. 진단 결과 표와 조치
 
 2단계(복사 후 상태는 3단계 출력 반영) 결과를 **표**로 보여준다. 항목 | 상태 | 조치. 이미 갖춰진 항목은 "확인됨", 조치 칸은 "-".
-세션 `LOGIN_NEEDED`는 오류가 아니라 "로그인 필요"로 표시한다.
+세션 `LOGIN_NEEDED`는 오류가 아니라 "로그인 필요"로, `WRONG_ACCOUNT`는 "다른 계정 로그인"으로 표시한다.
 
 | 항목 | 상태 | 조치 |
 |---|---|---|
@@ -110,7 +121,7 @@ for f in knowledge/*.md; do grep -q 'Task [0-9]*에서 채움' "$f" && cp "${CLA
 | python3 ≥ 3.11 | OK / MISSING | 3.11 이상 설치 (scaffold 스크립트용. naver-blog-cli는 uv가 자체 Python을 씀) |
 | Playwright Chromium | OK / MISSING | 아래 명령 |
 | naver-blog-cli | OK / MISSING | 아래 명령 |
-| 네이버 세션 | 정상 / 로그인 필요 | 아래 로그인 절차 |
+| 네이버 세션 | 정상 / 로그인 필요 / 다른 계정 로그인 | 아래 로그인 절차. **다른 계정 로그인**(`WRONG_ACCOUNT` — 세션은 살아 있지만 글쓰기 화면이 다른 블로그로 이동)이면 출력의 이동 주소를 보여 주고 `<blogId>` 블로그 계정으로 로그인 절차를 다시 하라고 안내(기존 세션 파일을 덮어씀). 블로그 주소가 틀렸다면 `knowledge/source-blogs.json`의 `own_blog`를 고친다 |
 | GEMINI_API_KEY | OK / MISSING | 아래 안내 |
 | 한글 폰트(표지 합성) | OK / MISSING | 아래 안내 |
 | photos/학원소개.png | OK / MISSING | 아래 안내 |

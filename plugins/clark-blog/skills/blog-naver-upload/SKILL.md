@@ -28,7 +28,7 @@ description: Use when a finished Clark academy blog post (posts/NNN-slug/final.m
    bash scripts/naver_upload.sh work/posts/<NNN-slug>/final.md --blog-id <blogId> 2>&1; echo "exit=$?"
    ```
 
-   스크립트가 하는 일, 순서대로: ① 표지 `images/00-cover.png` 확인(없으면 exit 12) → ② `lint_post.py --stage upload` + 이중 검사(금칙어·`[[`·빈 이미지·`[출처 필요]`·`출처:` 잔존·alt 있는 이미지·`:::place` 부재·`**#` 해시태그 줄 부재) → ③ frontmatter 읽기 → ④ 임시 작업 폴더에 `body.md`(frontmatter·첫 `# ` H1·`<!-- 제목 B안/A안 … -->` 주석 제거; 본문 이미지는 절대경로 그대로)와 `images/00-cover.png` 복사본 생성, 본문 이미지 절대경로 확인(`--dry-run`은 여기서 종료; 표지 경로·`:::place` 줄 출력) → ⑤ `naver-blog-cli check-session` → ⑥ `create-draft-from-folder <임시폴더> --markdown-file body.md --title --category --tags`(표지는 CLI가 본문 맨 앞에 캡션 없이 넣고 대표로 지정) → ⑦ 출력 노트에서 대표 지정 결과·`장소(…)` 값을 확인하고, `list-drafts`에 제목이 보이는지 확인 → `work/posts/NNN-slug/upload.log`에 기록.
+   스크립트가 하는 일, 순서대로: ① 표지 `images/00-cover.png` 확인(없으면 exit 12) → ② `lint_post.py --stage upload` + 이중 검사(금칙어·`[[`·빈 이미지·`[출처 필요]`·`출처:` 잔존·alt 있는 이미지·`:::place` 부재·`**#` 해시태그 줄 부재) → ③ frontmatter 읽기 → ④ 임시 작업 폴더에 `body.md`(frontmatter·첫 `# ` H1·`<!-- 제목 B안/A안 … -->` 주석 제거; 본문 이미지는 절대경로 그대로)와 `images/00-cover.png` 복사본 생성, 본문 이미지 절대경로 확인(`--dry-run`은 여기서 종료; 표지 경로·`:::place` 줄 출력) → ⑤ `naver-blog-cli check-session` + 계정 확인(`check_blog_account.py` — naver-blog-cli의 uv tool python으로 글쓰기 화면을 열어 URL의 블로그 주인이 `--blog-id`인지 본다. 다른 계정 세션이면 `check-session`은 통과해도 여기서 exit 21. 글은 쓰지 않는다) → ⑥ `create-draft-from-folder <임시폴더> --markdown-file body.md --title --category --tags`(표지는 CLI가 본문 맨 앞에 캡션 없이 넣고 대표로 지정) → ⑦ 출력 노트에서 대표 지정 결과·`장소(…)` 값을 확인하고, `list-drafts`에 제목이 보이는지 확인 → `work/posts/NNN-slug/upload.log`에 기록.
    창이 뜨고 글 하나에 수 분 걸린다. CAPTCHA가 뜨면 이랑에게 창을 직접 처리하도록 알린다.
 
 2. 종료 코드별 대응:
@@ -39,7 +39,8 @@ description: Use when a finished Clark academy blog post (posts/NNN-slug/final.m
    | 10 | `lint_post.py --stage upload` 실패(실패 항목 출력됨) | 텍스트 id(`tone`·`title_region`·`source_format` 등) → blog-writer를 `SendMessage`로 재개(B', 최대 1회). `image_paths`·`images`·`cover_file` → Step 3/게이트 3(`make_cover.py` 재실행 등 이미지 단계). 빌더 id(`sources_stripped`·`captions_empty`·`closing_block`·`h2_spacing`) → 중단하고 보고(`build_final.py` 버그). `final.md`는 손으로 고치지 않는다 |
    | 11 | 이중 검사 실패(금칙어·`[[`·빈 이미지·`[출처 필요]`·`[출처](` 링크형·`출처:` 잔존·alt 있는 이미지·`:::place`/`**#` 줄 부재) | lint를 통과했는데 걸렸다면 lint 규칙 구멍이다 — 중단하고 이랑에게 한 줄 보고(`final.md`는 손으로 고치지 않고, 원인 단계(B'·`build_final.py`)를 다시 실행) |
    | 12 | 표지 `images/00-cover.png` 없음 / 본문 이미지 경로가 절대경로가 아니거나(URL 포함) 파일이 없음 | 표지 없음: 이미지 단계(`make_cover.py`) 재실행. 경로 문제: `scripts/build_final.py` 재실행 |
-   | 20 | 세션 없음/만료 또는 `naver-blog-cli` 없음 | 이랑에게 로그인 안내: 작업 폴더에서 `python ~/naver-blog-cli/login_setup.py`(자세한 명령은 README), **"로그인 상태 유지" 체크**. 로그인은 사람만 한다. 끝나면 같은 명령 재실행 |
+   | 20 | 세션 없음/만료 또는 `naver-blog-cli` 없음, 계정 확인 실패 | 이랑에게 로그인 안내: 작업 폴더에서 `python ~/naver-blog-cli/login_setup.py`(자세한 명령은 README), **"로그인 상태 유지" 체크**. 로그인은 사람만 한다. 끝나면 같은 명령 재실행 |
+   | 21 | 로그인한 계정이 `--blog-id` 블로그에 글을 쓸 수 없음 — 세션은 살아 있으나 다른 계정(글쓰기 화면이 그 계정 블로그로 리다이렉트). 임시저장은 시도하지 않음 | `확인 결과:` 줄의 이동 주소를 이랑에게 보여 주고 **대상 블로그 계정으로** 다시 로그인하도록 안내(위 20과 같은 `login_setup.py`, 사람이 직접, 기존 세션 파일을 덮어씀). `--blog-id` 값 자체가 틀렸는지도 확인. 끝나면 같은 명령 재실행 |
    | 30 | `create-draft-from-folder` 실패(`넣기 전에 걸린 것`·`작성 실패`·`임시저장이 안 된 것 같습니다`·`…을 못 찾음`·그 외 출력) | 출력 tail의 CLI 문구를 `references/naver-blog-cli.md`의 실패 유형과 대조: `넣기 전에 걸린 것`(이미지 없음·10MB 초과 — 브라우저 열기 전이라 임시저장 안 됨) · 에디터 개편(`…을 못 찾음`) · 세션 만료. 임시저장 수가 늘었을 수 있으니 `list-drafts`/네이버에서 중복 여부를 확인한 뒤 재시도 |
    | 31 | 저장은 끝났으나 목록에서 제목 확인 불가 | 저장됐을 수 있다. 이랑에게 "네이버 → 글쓰기 → 임시저장 글"에서 직접 확인을 요청하고, 있으면 성공으로 처리 |
    | 2 | 사용 오류(경로·frontmatter) | 인자와 `final.md` frontmatter 확인 |

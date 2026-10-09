@@ -78,6 +78,8 @@ NAVER_BLOG_ID 가 설정되지 않았습니다.
 | 보기만 되고 글쓰기 불가(로그인 유지 미체크 등) | `보기는 되지만 글쓰기 불가 — <사유>` |
 | 그 외 예외 | `확인 실패: <사유>` |
 
+**주의 — 다른 계정 세션은 `세션 정상 (…, 글쓰기 가능)`으로 통과한다 (2026-10-09 실측).** 테스트 계정(iloveccmel) 세션으로 `NAVER_BLOG_ID=pajuclark check-session`이 정상을 냈지만, `https://blog.naver.com/pajuclark?Redirect=Write`는 `https://blog.naver.com/iloveccmel`(로그인 계정 블로그 홈)로 리다이렉트됐고, 블로그 홈에도 `#mainFrame`이 있어 `wait_for_editor`가 통과했다. 이후 `create-draft-from-folder`는 `작성 실패: 글자 크기 버튼을 못 찾음 — selectors 갱신 필요`, `list-drafts`는 `임시저장 목록 버튼을 못 찾음`. 그래서 셸은 `check-session` 뒤에 `scripts/check_blog_account.py <blogId>`(uv tool python으로 실행 — `naver_blog_cli`를 import해야 하므로)로 글쓰기 화면 URL의 블로그 주인을 확인한다: 0 일치(URL 주인이 대상이고 에디터 제목 영역이 보임) · 20 로그인 페이지/세션 파일 없음 · 21 다른 사람 블로그로 이동 · 22 그 밖의 실패(블로그 주인을 알 수 없는 곳으로 이동·에디터 미표시 등). `goto_editor`의 팝업 닫기 클릭은 하지 않고, `NAVER_KEEP_OPEN`은 무시한다.
+
 분기 규칙(Task 13 셸): 출력이 `세션 정상`으로 시작하고 `글쓰기 가능`을 포함할 때만 통과. 그 외는 전부 실패로 보고 이랑에게 로그인 안내 후 중단. 같은 이유로 `create-draft`도 종료 코드로 성공을 판정하지 않는다.
 
 ## 서브커맨드 전체 (`naver-blog-cli --help`)

@@ -36,7 +36,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Skill, Agent, SendMessage, A
 
 ## Step 0. preflight
 
-한 번의 Bash 호출로 확인한다. 키 값은 출력하지 않는다. `naver-blog-cli`는 종료 코드가 항상 0이므로 **stdout 문구**(`세션 정상` + `글쓰기 가능`)로 판정한다.
+한 번의 Bash 호출로 확인한다. 키 값은 출력하지 않는다. `naver-blog-cli`는 종료 코드가 항상 0이므로 **stdout 문구**(`세션 정상` + `글쓰기 가능`)로 판정한다. `check-session`은 **다른 계정으로 로그인된 세션도 통과**시키므로(글쓰기 화면이 그 계정 블로그로 리다이렉트돼도 iframe이 붙음, 2026-10-09 실측), 세션이 정상이면 `scripts/check_blog_account.py`로 글쓰기 화면이 `<blogId>` 블로그로 열리는지 한 번 더 본다(헤드리스, 창 안 뜸, 약 10초, 글은 쓰지 않음).
 
 ```bash
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
@@ -53,7 +53,7 @@ echo "photos: $(find photos -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.j
 if [ -f "$HOME/Library/Fonts/Pretendard-ExtraBold.otf" ] || [ -f /System/Library/Fonts/AppleSDGothicNeo.ttc ]; then echo "font: OK"
 else echo "font: MISSING"; fi
 command -v uv >/dev/null 2>&1 && echo "uv: OK" || echo "uv: MISSING"
-for s in fetch_posts.py fetch_post.py dedupe_check.py lint_post.py gen_image.py make_cover.py build_final.py naver_upload.sh; do
+for s in fetch_posts.py fetch_post.py dedupe_check.py lint_post.py gen_image.py make_cover.py build_final.py naver_upload.sh check_blog_account.py; do
   if [ ! -f "scripts/$s" ]; then echo "script: MISSING $s"
   elif ! cmp -s "scripts/$s" "${CLAUDE_PLUGIN_ROOT}/scaffold/scripts/$s"; then echo "script: OUTDATED $s"; fi
 done
@@ -63,7 +63,16 @@ BLOG_ID=pajuclark
 echo "blogId: $BLOG_ID"
 if command -v naver-blog-cli >/dev/null 2>&1; then
   SESS=$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli check-session 2>&1)
-  if echo "$SESS" | grep -q '세션 정상' && echo "$SESS" | grep -q '글쓰기 가능'; then echo "session: OK"
+  if echo "$SESS" | grep -q '세션 정상' && echo "$SESS" | grep -q '글쓰기 가능'; then
+    CLI_PY="$(uv tool dir 2>/dev/null)/naver-blog-cli/bin/python"
+    if [ -x "$CLI_PY" ] && [ -f scripts/check_blog_account.py ]; then
+      ACCT=$("$CLI_PY" scripts/check_blog_account.py "$BLOG_ID" 2>&1); ACCT_RC=$?
+      case "$ACCT_RC" in
+        0) echo "session: OK" ;;
+        21) echo "session: WRONG_ACCOUNT — $(echo "$ACCT" | tail -1)" ;;
+        *) echo "session: LOGIN_NEEDED — $(echo "$ACCT" | tail -1)" ;;
+      esac
+    else echo "session: LOGIN_NEEDED — 계정 확인 불가(naver-blog-cli 의 uv tool python 또는 scripts/check_blog_account.py 없음 — 업로드도 exit 20)"; fi
   else echo "session: LOGIN_NEEDED — $(echo "$SESS" | head -1)"; fi
 else echo "session: MISSING (naver-blog-cli 없음)"; fi
 for f in "${CLAUDE_PLUGIN_ROOT}/skills/blog-draft-writer/SKILL.md" \
@@ -81,6 +90,7 @@ done
 | `GEMINI_API_KEY: MISSING` | `/clark-blog:blog-setup`의 GEMINI 안내(https://aistudio.google.com/apikey → 작업 폴더 `.env`에 `GEMINI_API_KEY=…`, 채팅에 붙여넣지 않기)를 **경고로 보여 주고 계속**. 이 실행은 "키 없음 모드": Step 3에서 photo 슬롯만 처리하고 ai 슬롯은 `보류`(표지 `00`은 `photos/` 실사진을 배경으로 `make_cover.py`만 돌려 만들 수 있다 — 비용 0). 이때 `photos:` < `min_images:`이면 실사진만으로 이미지 수를 못 채워 업로드까지 갈 수 없다 — B 발주 전에 묻는다(아래 [B] 참고) |
 | `design-system.md: MISSING` | "`blog-design-system` 스킬로 디자인 시스템을 먼저 만들어 주세요." 안내 후 **중단** |
 | `session: LOGIN_NEEDED` / `MISSING` | "업로드 전까지 로그인해 두세요"라고 **경고하고 계속**(Step 4까지 진행). 이 실행은 "세션 없음 모드": Step 5는 `--dry-run`만 하고 로그인 안내 후 끝낸다 |
+| `session: WRONG_ACCOUNT` | 세션은 살아 있지만 **다른 계정**이라 `<blogId>` 블로그에 글을 쓸 수 없다(출력에 이동한 블로그 주소가 나온다). "업로드 전까지 `<blogId>` 블로그 계정으로 다시 로그인해 두세요 — 지금 세션은 다른 계정입니다"라고 **경고하고 계속**. "세션 없음 모드"와 같이 Step 5는 `--dry-run`만 한다. 로그인 안내는 `/clark-blog:blog-setup` 4단계와 같되 **그 블로그 계정으로** 로그인하라고 명시 |
 | `academy-image: MISSING` | "마무리 블록을 만들 수 없습니다 — `photos/학원소개.png`를 넣어 주세요." 안내 후 **중단**(`build_final.py`가 모든 글 끝에 붙이는 고정 자산. `photos:` 수에는 세지 않는다) |
 | `font: MISSING` | "표지(대표이미지)를 만들 수 없습니다 — Pretendard(ExtraBold·SemiBold)를 `~/Library/Fonts/`에 설치하거나 `/System/Library/Fonts/AppleSDGothicNeo.ttc`가 있는 macOS에서 실행하세요." 안내 후 **중단**(`make_cover.py`는 한글 폰트가 없으면 추측 렌더 없이 exit 2) |
 | `uv: MISSING` | "`uv`가 없어 표지 합성·이미지 생성(`uv run --with pillow …`)을 할 수 없습니다." + `/clark-blog:blog-setup`의 uv 설치 명령 안내 후 **중단** |
@@ -445,7 +455,7 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage upload --jso
 
 **Skill 도구로** `clark-blog:blog-naver-upload`를 실행해 그 절차대로 메인이 직접 수행한다. 출력은 stdout·stderr를 함께 받는다(경고 줄이 stderr에도 나온다).
 
-`<blogId>`는 Step 0 출력의 `blogId:` 값(`own_blog.blogId`) — 세션 확인과 업로드가 같은 블로그를 쓰게 항상 넘긴다.
+`<blogId>`는 Step 0 출력의 `blogId:` 값(`own_blog.blogId`) — 세션 확인과 업로드가 같은 블로그를 쓰게 항상 넘긴다. 실제 임시저장 전에 스크립트가 `check-session`과 `check_blog_account.py`(글쓰기 화면이 그 블로그로 열리는지)를 차례로 확인한다.
 
 스크립트는 `lint --stage upload` → 이중 검사(금칙어·`[[`·빈 이미지·`[출처 필요]`·`출처:`/캡션 잔존·`:::place`·`**#` 해시태그 줄) → 본문을 임시 폴더의 `body.md`로, 표지 `P/images/00-cover.png`를 그 폴더의 `images/00-cover.png`로 복사 → `naver-blog-cli create-draft-from-folder <임시 폴더> --markdown-file body.md --title --category --tags` 순으로 돈다. **from-folder는 본문이 참조하지 않는 `images/00-cover.*`를 본문 맨 앞에 캡션 없이 넣고 대표이미지로 지정한다**(노트 `0:표지`·`대표 지정`). 그래서 final.md 본문에는 표지가 없다(lint `cover_file`). 본문의 `:::place …:::`는 네이버 장소 카드가 되고, CLI가 고른 장소는 노트 `장소(…)`로 돌아온다.
 
@@ -453,7 +463,7 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage upload --jso
    ```bash
    bash scripts/naver_upload.sh work/posts/<NNN-slug>/final.md --blog-id <blogId> --dry-run 2>&1; echo "exit=$?"
    ```
-   **세션 없음 모드**(Step 0 `session: LOGIN_NEEDED`/`MISSING`)면 여기서 멈춘다: dry-run 결과를 보여 주고 `/clark-blog:blog-setup` 4단계 로그인 절차(작업 폴더에서 `login_setup.py`, "로그인 상태 유지" 체크, 사람이 직접)를 안내한 뒤 "로그인 후 `/clark-blog:blog-run resume <NNN>`으로 업로드만 이어서"라고 알리고 종료 보고로 간다. `## 업로드`와 variation-log 줄은 **쓰지 않는다**.
+   **세션 없음 모드**(Step 0 `session: LOGIN_NEEDED`/`MISSING`/`WRONG_ACCOUNT`)면 여기서 멈춘다: dry-run 결과를 보여 주고 `/clark-blog:blog-setup` 4단계 로그인 절차(작업 폴더에서 `login_setup.py`, "로그인 상태 유지" 체크, 사람이 직접)를 안내한 뒤 "로그인 후 `/clark-blog:blog-run resume <NNN>`으로 업로드만 이어서"라고 알리고 종료 보고로 간다. `## 업로드`와 variation-log 줄은 **쓰지 않는다**.
 2. dry-run이 exit 0일 때만 실제 임시저장(따로 호출). 창이 뜨고 수 분 걸릴 수 있다고 미리 알린다.
    ```bash
    bash scripts/naver_upload.sh work/posts/<NNN-slug>/final.md --blog-id <blogId> 2>&1; echo "exit=$?"
@@ -468,7 +478,8 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage upload --jso
 | 10 | `lint_post.py --stage upload` 실패 | Step 4의 lint FAIL id별 처리와 같음(텍스트 → B' 재개, 이미지 → Step 3/4, 빌더 → 중단·보고) |
 | 11 | 이중 검사 실패 | lint 규칙 구멍이다. 금칙어·`[[`·`[출처 필요]` 같은 텍스트 줄 → B' 재개(draft-v2.md) 후 Step 4 재실행. `출처:` 잔존·캡션 잔존·`:::place` 없음·`**#` 없음·빈 이미지 → `build_final.py` 재실행(Step 4), 그래도 같으면 빌더 버그 — 중단·보고. 어느 쪽이든 이랑에게 한 줄 보고 |
 | 12 | 이미지 문제 — 표지 `images/00-cover.png` 없음, 또는 이미지 경로가 절대경로가 아니거나 파일 없음 | 표지 없음 → Step 3의 표지 명령(`make_cover.py`, 배경이 없으면 gen_image `--only 00` 또는 실사진 배경)으로 만든 뒤 업로드 재실행. 경로 문제 → Step 4 재실행(`build_final.py`가 image-plan.md 기준 절대경로로 다시 씀) |
-| 20 | 세션 없음/만료 또는 `naver-blog-cli` 없음 | `/clark-blog:blog-setup` 4단계 로그인 절차 안내("로그인 상태 유지" 체크, 사람이 직접) → 끝났다고 하면 같은 명령 1회 재실행 |
+| 20 | 세션 없음/만료 또는 `naver-blog-cli` 없음, 계정 확인 실패 | `/clark-blog:blog-setup` 4단계 로그인 절차 안내("로그인 상태 유지" 체크, 사람이 직접) → 끝났다고 하면 같은 명령 1회 재실행 |
+| 21 | 로그인한 계정이 `<blogId>` 블로그에 글을 쓸 수 없음(세션은 살아 있으나 다른 계정 — 글쓰기 화면이 그 계정 블로그로 이동). 임시저장은 시도하지 않았다 | 출력의 `확인 결과:` 줄(이동한 블로그 주소)을 이랑에게 보여 주고, **`<blogId>` 블로그 계정으로** `/clark-blog:blog-setup` 4단계 로그인을 다시 하도록 안내(사람이 직접, "로그인 상태 유지" 체크. 기존 `playwright-state/storage_state.json`을 그 계정 세션으로 덮어쓴다) → 끝났다고 하면 같은 명령 1회 재실행. `--blog-id`가 잘못된 경우(`knowledge/source-blogs.json`의 `own_blog`)도 함께 확인 |
 | 30 | `create-draft-from-folder` 실패 | 출력된 CLI 문구를 이랑에게 보여 준다. `넣기 전에 걸린 것`(브라우저를 열기 전 이미지 존재·10MB 검사 실패)이면 그 파일을 고친 뒤 재시도. 그 밖(에디터 변경·세션 만료)은 네이버 임시저장 글에 중복이 생겼는지 확인을 요청한 뒤 재시도는 1회까지 |
 | 31 | 저장됐으나 목록에서 제목 확인 불가 | 이랑에게 "네이버 → 글쓰기 → 임시저장 글"에서 직접 확인 요청. 있으면 성공으로 기록 |
 
@@ -548,7 +559,7 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage upload --jso
 
 ### 업로드 재개 (Step 5만 — 세션이 없어 업로드를 미뤘을 때)
 
-1. Step 0의 preflight Bash를 그대로 실행하고 Step 0 표대로 판정한다: `work-folder: MISSING`·`script: MISSING`/`OUTDATED`·`skill: MISSING`이면 그 표의 안내 후 끝낸다. `blogId`를 기억한다. `session: OK`가 아니면 로그인 안내 후 끝낸다(`GEMINI_API_KEY`·`design-system.md`·`academy-image`·`font`·`uv`는 업로드만 할 때는 무관 — 무시. final.md는 이미 만들어져 있다. 단 위의 보류 이미지 질문에는 `GEMINI_API_KEY` 결과를 쓴다).
+1. Step 0의 preflight Bash를 그대로 실행하고 Step 0 표대로 판정한다: `work-folder: MISSING`·`script: MISSING`/`OUTDATED`·`skill: MISSING`이면 그 표의 안내 후 끝낸다. `blogId`를 기억한다. `session: OK`가 아니면(`WRONG_ACCOUNT` 포함) 로그인 안내 후 끝낸다(`GEMINI_API_KEY`·`design-system.md`·`academy-image`·`font`·`uv`는 업로드만 할 때는 무관 — 무시. final.md는 이미 만들어져 있다. 단 위의 보류 이미지 질문에는 `GEMINI_API_KEY` 결과를 쓴다).
 2. `gates.md`에 `## 업로드`가 이미 있으면 "이미 임시저장했습니다(<일시>)"라고 알리고, 다시 올릴지 AskUserQuestion `다시 올리기` / `그만두기`(중복 임시저장 주의).
 3. `python3 scripts/lint_post.py <P>/final.md --stage upload --json > <P>/lint.json` — exit 1이면 FAIL id를 보고하고 끝낸다(텍스트 수정이 필요하면 이 명령이 아니라 전체 워크플로우로. 이전 버전(0.1.x)에서 만든 final.md는 출처·캡션이 남아 있고 마무리 블록·소제목 여백·표지가 없어 `sources_stripped`·`captions_empty`·`closing_block`·`h2_spacing`·`cover_file`에서 FAIL한다 — 이때는 "이전 형식 final.md입니다 — `resume`으로는 올릴 수 없습니다"라고 알린다).
 4. Step 5의 dry-run → 실제 임시저장(`--blog-id <blogId>`) → exit code 표대로 대응 → 성공 기록(`## 업로드` + variation-log 1줄) → 종료 보고.
