@@ -301,9 +301,10 @@ class LintPostTest(unittest.TestCase):
             t = t.replace(f"![캡션{i}]", "![]")
         h1 = "# 지게차운전기능사 실기 순서\n\n"
         head, rest = t.split(h1, 1)
-        rest = re.sub(r"(?m)^## ", FILL + "\n## ", rest)
-        toc = (f"도입 문단입니다.\n\n{FILL}\n## 📑 목차\n- 지게차 운전기능사 소제목 1\n- 소제목 2\n---\n\n")
-        closing = (f"\n{FILL}\n## 📞 문의 및 수강신청: 031-855-9948\n![]({self.intro_img})\n"
+        # 여백 계약: 직전 비어 있지 않은 줄 → ㅤ → 빈 줄 → ##
+        rest = FILL + "\n\n" + re.sub(r"\n+(?=## )", "\n" + FILL + "\n\n", rest)
+        toc = (f"도입 문단입니다.\n{FILL}\n\n## 📑 목차\n- 지게차 운전기능사 소제목 1\n- 소제목 2\n---\n")
+        closing = (f"{FILL}\n\n## 📞 문의 및 수강신청: 031-855-9948\n![]({self.intro_img})\n"
                    ":::place 클라크중장비운전학원:::\n\n**#지게차운전기능사 #양주지게차학원**\n")
         return head + h1 + toc + rest + closing
 
@@ -368,19 +369,46 @@ class LintPostTest(unittest.TestCase):
     def test_upload_closing_block_fail(self):
         place = ":::place 클라크중장비운전학원:::\n"
         self.assertEqual(self.failed(self.run_upload(self.upload_text().replace(place, ""))), ["closing_block"])
-        moved = self.upload_text().replace(place, "").replace(f"{FILL}\n## 📞", f"{place}{FILL}\n## 📞")
+        moved = self.upload_text().replace(place, "").replace(f"{FILL}\n\n## 📞", f"{place}{FILL}\n\n## 📞")
         self.assertEqual(self.failed(self.run_upload(moved)), ["closing_block"])
         no_tags = self.upload_text().replace("**#지게차운전기능사 #양주지게차학원**\n", "")
         res = self.run_upload(no_tags)
         self.assertEqual(self.failed(res), ["closing_block"])
         self.assertIn("**# 해시태그", self.by_id(res)["closing_block"]["value"])
 
+    def test_upload_h2_spacing_pass_shape(self):
+        t = self.upload_text()
+        self.assertIn(f"도입 문단입니다.\n{FILL}\n\n## 📑 목차", t)
+        self.assertIn(f"pajuclark/2)\n{FILL}\n\n## 📞", t)
+        self.assertEqual(self.by_id(self.run_upload(t))["h2_spacing"]["result"], "PASS")
+        # 빌더 기본값 ㅤ×2(모든 ## 앞) · ㅤ×3도 PASS
+        for n in (2, 3):
+            tn = t.replace(f"{FILL}\n\n## ", f"{FILL}\n" * n + "\n## ")
+            self.assertEqual(tn.count(f"{FILL}\n" * n + "\n## "), 6)  # 목차 + 소제목 4 + 문의
+            self.assertEqual(self.failed(self.run_upload(tn)), [], n)
+
     def test_upload_h2_spacing_fail(self):
-        t = self.upload_text().replace(f"{FILL}\n## 소제목 2", "## 소제목 2")
+        # 구 형태: ㅤ 바로 아래 ## (빈 줄 없음)
+        t = self.upload_text().replace(f"{FILL}\n\n## 소제목 2", f"{FILL}\n## 소제목 2")
         res = self.run_upload(t)
         self.assertEqual(self.failed(res), ["h2_spacing"])
         self.assertIn("## 소제목 2", self.by_id(res)["h2_spacing"]["detail"])
-        t = self.upload_text().replace(f"{FILL}\n## 📑", "\n## 📑")
+        t = self.upload_text().replace(f"{FILL}\n\n## 📑", f"{FILL}\n## 📑")
+        self.assertEqual(self.failed(self.run_upload(t)), ["h2_spacing"])
+        # ㅤ×2인데 빈 줄 없음
+        t = self.upload_text().replace(f"{FILL}\n\n## 소제목 2", f"{FILL}\n{FILL}\n## 소제목 2")
+        self.assertEqual(self.failed(self.run_upload(t)), ["h2_spacing"])
+        # 빈 줄만 있고 ㅤ 없음
+        t = self.upload_text().replace(f"{FILL}\n\n## 소제목 3", "\n## 소제목 3")
+        self.assertEqual(self.failed(self.run_upload(t)), ["h2_spacing"])
+        # 둘 다 없음
+        t = self.upload_text().replace(f"{FILL}\n\n## 📞", "## 📞")
+        self.assertEqual(self.failed(self.run_upload(t)), ["h2_spacing"])
+        # ㅤ×2와 ## 사이 빈 줄 없음(ㅤ 위에 빈 줄)
+        t = self.upload_text().replace(f"{FILL}\n\n## 소제목 3", f"\n{FILL}\n{FILL}\n## 소제목 3")
+        self.assertEqual(self.failed(self.run_upload(t)), ["h2_spacing"])
+        # 순서 뒤바뀜: 빈 줄 → ㅤ → ##
+        t = self.upload_text().replace(f"{FILL}\n\n## 소제목 4", f"\n{FILL}\n## 소제목 4")
         self.assertEqual(self.failed(self.run_upload(t)), ["h2_spacing"])
 
     def test_final_skips_upload_only_checks(self):

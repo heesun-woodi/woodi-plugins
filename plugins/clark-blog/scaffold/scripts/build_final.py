@@ -11,9 +11,9 @@
     `images/…`는 글 폴더 기준, `photos/…`는 --photos의 상위(작업 폴더) 기준. `제거`·`보류`는 줄째 지운다.
  ③ `(출처: URL)` 단독 괄호를 모두 지운다. 그 뒤에도 `출처:`(조항과 섞인 괄호)나 `[출처](URL)` 링크형이 남으면
     변환하지 않는다.
- ④ 본문의 모든 `## `(펜스 밖) 앞: 직전 비어 있지 않은 줄이 이미지·구분선(`---`)이면 `ㅤ`(U+3164) 2줄
-    (naver-blog-cli는 그 뒤 블록에 gap을 붙이지 않음), 그 밖이면 빈 줄 + `ㅤ` 1줄.
-    `ㅤ`와 `## ` 사이에 빈 줄은 없다. 이미 있던 빈 줄·`ㅤ` 줄은 이 배치로 다시 맞춘다(멱등).
+ ④ 본문의 모든 `## `(펜스 밖, 목차 포함) 앞은 직전 줄 종류와 상관없이 항상
+    `<직전 비어 있지 않은 줄>` → `ㅤ`(U+3164) H2_FILLER_LINES줄(사이 빈 줄 없음) → 빈 줄 1개 → `## `.
+    빈 줄이 소제목에 gap을 줘 앞 문단에 이어 붙지 않게 한다. 이미 있던 빈 줄·`ㅤ` 줄은 이 배치로 다시 맞춘다(멱등).
  ⑤ image-plan `00` 행 캡션 `제목: …; 줄바꿈: 줄1; 줄2`의 제목 값(첫 `;` 앞까지)과 frontmatter title이 공백 무시로 같아야 한다.
  ⑥ 마지막 `## `이 `## 📞 문의 및 수강신청`이어야 하고, 그 뒤에 학원소개 이미지 → `:::place 검색어:::` → 빈 줄 →
     `**#태그 …**`(tags의 앞 `#`·공백 제거)를 붙인다. 검색어는 academy-profile.md `| 장소 검색어 | … |` 행(없으면 기본값).
@@ -31,6 +31,7 @@ from gen_image import parse_plan  # noqa: E402
 from lint_post import find_knowledge, parse_frontmatter  # noqa: E402
 
 FILLER = "ㅤ"  # 한글 채움 문자 — naver-blog-cli에서 독립 빈 문단이 된다
+H2_FILLER_LINES = 2  # 소제목 앞 ㅤ 줄 수(1줄은 문단 사이 간격과 같아 보여 2줄)
 DEFAULT_PLACE = "클라크중장비운전학원"
 CLOSING_H2 = "## 📞 문의 및 수강신청"
 ACADEMY_IMG = "학원소개.png"
@@ -39,7 +40,6 @@ SOURCE_RE = re.compile(r"\s*\(출처:\s*https?://[^)\s]+\)")
 LEFT_SOURCE_RE = re.compile(r"출처\s*:")
 LINK_SOURCE_RE = re.compile(r"\[출처\]\(")
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
-HR_RE = re.compile(r"^\s*([-*_])(\s*\1){2,}\s*$")
 COMMENT_RE = re.compile(r"<!--.*?-->")
 
 
@@ -186,11 +186,8 @@ def build(post_dir, photos_dir, kdir):
         if line.startswith("## "):
             while len(out) > body_start and (not out[-1].strip() or is_filler(out[-1])):
                 out.pop()
-            prev = next((x for x in reversed(out[body_start:]) if x.strip()), "")
-            two = prev.lstrip().startswith("![") or HR_RE.match(prev)
-            filler = [FILLER, FILLER] if two else ["", FILLER]
-            out += filler
-            n_fill += filler.count(FILLER)
+            out += [FILLER] * H2_FILLER_LINES + [""]
+            n_fill += H2_FILLER_LINES
             h2.append(line)
         out.append(line)
 

@@ -10,7 +10,8 @@
 - upload — 업로드본(final.md, build_final.py 결과). final 검사에서 sources·seo_image_captions를 SKIP하고
   전용 검사 5종을 더한다: sources_stripped(`출처:`·`[출처](` 0건), captions_empty(alt 있는 이미지 0건),
   cover_file(<글 폴더>/images/00-cover.png 존재 + 본문 미참조), closing_block(`## 📞 문의 및 수강신청` →
-  `학원소개` 이미지 → `:::place` → `**#` 순서), h2_spacing(목차 포함 모든 `## ` 바로 윗줄이 U+3164(ㅤ)만 있는 줄).
+  `학원소개` 이미지 → `:::place` → `**#` 순서), h2_spacing(목차 포함 모든 `## ` 바로 윗줄이 빈 줄이고 그 위에 U+3164(ㅤ)만 있는 줄이 1줄 이상 연속 —
+  `ㅤ`×N(N>=1, 빌더 기본 2) → 빈 줄 → `## `).
 
 모든 단계 공통: tone(해요체 종결 0건 — `~세요` 권유·필요/중요 같은 명사는 예외; 의문문은 `까요?·나요?·ㅂ니까?/습니까?·인가요?·세요?`만 허용),
 source_format(`출처:` 출현 수 == `(출처: https://…)` 단독 괄호 수, 링크형 `[출처](` 0건, 괄호 URL 안 `(` 0건), title_region(frontmatter의
@@ -447,9 +448,11 @@ def lint_text(text, stage, th, forbidden, regions=None, post_dir=None):
         c.append(check("closing_block", "누락/순서 오류: " + ", ".join(miss) if miss else "완전",
                        "문의 헤딩 → 학원소개 이미지 → :::place → **#", "FAIL" if miss else "PASS"))
         nospace = [ln.strip() for k, ln in enumerate(body)
-                   if ln.startswith("## ") and not (k > 0 and FILLER_LINE_RE.match(body[k - 1]))]
-        c.append(check("h2_spacing", len(nospace), "모든 ## 윗줄이 ㅤ 줄", "FAIL" if nospace else "PASS",
-                       ("ㅤ 없음: " + "; ".join(nospace[:3])) if nospace else ""))
+                   # 빈 줄 바로 위가 ㅤ 줄이면 그 위로 ㅤ가 몇 줄 더 있어도(N>=1) 통과
+                   if ln.startswith("## ") and not (k > 1 and not body[k - 1].strip()
+                                                     and FILLER_LINE_RE.match(body[k - 2]))]
+        c.append(check("h2_spacing", len(nospace), "모든 ## 위가 ㅤ 줄(1줄 이상) → 빈 줄", "FAIL" if nospace else "PASS",
+                       ("ㅤ+빈 줄 없음: " + "; ".join(nospace[:3])) if nospace else ""))
     return {"stage": stage, "pass": all(x["result"] != "FAIL" for x in c), "checks": c, "stats": stats}
 
 

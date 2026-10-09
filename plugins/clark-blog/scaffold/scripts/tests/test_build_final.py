@@ -151,29 +151,43 @@ class BuildFinalTest(unittest.TestCase):
     def test_spacing_after_paragraph(self):
         p, text = self.run_build()
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertEqual(self.lines_before(text, "## 2️⃣ 이미지 뒤 소제목", 3),
-                         ["본문 문단입니다. 둘째 문장입니다.", "", F])
+        self.assertEqual(self.lines_before(text, "## 2️⃣ 이미지 뒤 소제목", 4),
+                         ["본문 문단입니다. 둘째 문장입니다.", F, F, ""])
 
     def test_spacing_after_image(self):
         p, text = self.run_build()
         self.assertEqual(p.returncode, 0, p.stderr)
         img = os.path.join(self.post, "images", "02-scene.png")
-        self.assertEqual(self.lines_before(text, "## 3️⃣ 목록 뒤 소제목", 3), [f"![]({img})", F, F])
+        self.assertEqual(self.lines_before(text, "## 3️⃣ 목록 뒤 소제목", 4), [f"![]({img})", F, F, ""])
 
     def test_spacing_after_list(self):
         p, text = self.run_build()
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertEqual(self.lines_before(text, "## 4️⃣ 제거 슬롯", 3), ["- 항목 둘", "", F])
+        self.assertEqual(self.lines_before(text, "## 4️⃣ 제거 슬롯", 4), ["- 항목 둘", F, F, ""])
         # 제목·문단 뒤는 '그 밖' 규칙
-        self.assertEqual(self.lines_before(text, "## 📑 목차", 3), ["도입 문단입니다.", "", F])
+        self.assertEqual(self.lines_before(text, "## 📑 목차", 4), ["도입 문단입니다.", F, F, ""])
         # 실사진 뒤 마무리 소제목 → ㅤ 2줄
-        self.assertEqual(self.lines_before(text, "## 📞 문의 및 수강신청: 031-855-9948", 3),
-                         [f"![]({self.root}/photos/yard.jpg)", F, F])
+        self.assertEqual(self.lines_before(text, "## 📞 문의 및 수강신청: 031-855-9948", 4),
+                         [f"![]({self.root}/photos/yard.jpg)", F, F, ""])
+
+    def test_filler_lines_constant(self):
+        self.run_build()  # 초안·계획 파일 쓰기
+        old = build_final.H2_FILLER_LINES
+        build_final.H2_FILLER_LINES = 1
+        try:
+            text, summary, errs = build_final.build(self.post, os.path.join(self.root, "photos"),
+                                                    os.path.join(self.root, "knowledge"))
+        finally:
+            build_final.H2_FILLER_LINES = old
+        self.assertEqual(errs, [])
+        self.assertEqual(self.lines_before(text, "## 2️⃣ 이미지 뒤 소제목", 3),
+                         ["본문 문단입니다. 둘째 문장입니다.", F, ""])
+        self.assertIn("필러 삽입 6줄", summary)
 
     def test_spacing_after_divider(self):
         p, text = self.run_build()
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertEqual(self.lines_before(text, "## 1️⃣ 문단 뒤 소제목", 3), ["---", F, F])
+        self.assertEqual(self.lines_before(text, "## 1️⃣ 문단 뒤 소제목", 4), ["---", F, F, ""])
 
     def test_fenced_h2_untouched(self):
         self.draft = DRAFT.replace("본문 문단입니다 (출처", "```\n문단\n\n## 펜스 안 소제목\n```\n본문 문단입니다 (출처")
@@ -208,7 +222,10 @@ class BuildFinalTest(unittest.TestCase):
         self.assertEqual((p1.returncode, p2.returncode), (0, 0))
         self.assertEqual(t1, t2)
         # 초안에 이미 ㅤ 줄이 있어도 중복 삽입하지 않음
-        self.draft = DRAFT.replace("\n\n## 3️⃣", f"\n{F}\n{F}\n## 3️⃣").replace("\n\n\n## 2️⃣", f"\n\n{F}\n## 2️⃣")
+        # 이미 ㅤ+빈 줄(새 형태)·ㅤ 2줄(옛 형태)·빈 줄+ㅤ(옛 형태)이 있어도 같은 배치로 정규화
+        self.draft = (DRAFT.replace("\n\n## 3️⃣", f"\n{F}\n{F}\n## 3️⃣")
+                      .replace("\n\n\n## 2️⃣", f"\n\n{F}\n## 2️⃣")
+                      .replace("- 항목 둘\n## 4️⃣", f"- 항목 둘\n{F}\n\n## 4️⃣"))
         p3, t3 = self.run_build()
         self.assertEqual(p3.returncode, 0, p3.stderr)
         self.assertEqual(t3, t1)

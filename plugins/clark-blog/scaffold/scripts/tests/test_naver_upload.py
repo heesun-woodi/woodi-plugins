@@ -85,18 +85,18 @@ class NaverUploadTest(unittest.TestCase):
         for n in range(4):
             sents = " ".join(f"지게차 실습은 순서를 익히면 차분하게 해낼 수 있습니다 {n}-{i}." for i in range(14))
             h2 = "지게차 운전기능사 소제목 1" if n == 0 else f"소제목 {n + 1}"
-            sec = f"{F}\n## {n + 1}\ufe0f\u20e3 {h2}\n\n**핵심** 지게차 운전기능사 {sents}\n"
+            sec = f"{F}\n\n## {n + 1}\ufe0f\u20e3 {h2}\n\n**핵심** 지게차 운전기능사 {sents}\n"
             if n < 3:
                 sec += f"\n![]({imgs[n]})\n"
             secs.append(sec)
         closing = (tail if tail is not None else
                    "[관련글1](https://blog.naver.com/pajuclark/1)\n[관련글2](https://blog.naver.com/pajuclark/2)\n\n"
-                   f"{F}\n## 📞 문의 및 수강신청: 031-855-9948\n\n![]({self.intro})\n"
+                   f"{F}\n\n## 📞 문의 및 수강신청: 031-855-9948\n\n![]({self.intro})\n"
                    f":::place 클라크중장비운전학원:::\n\n**#지게차운전기능사 #지게차실기 #의정부지게차학원 #양주지게차학원 #국비지원**\n")
         fm = (f"---\ntitle: {TITLE}\nkeyword: 지게차 운전기능사\ncategory: 클라크중장비운전학원\n"
               "tags: [지게차운전기능사, 지게차실기, 의정부지게차학원, 양주지게차학원, 국비지원]\n"
               "variation: {type: 정보, structure: 절차형, intro: 상황, region: [의정부, 양주], title_region: 의정부}\n---\n")
-        toc = "\u3164\n## 📑 목차\n- 소제목 1\n- 소제목 2\n- 소제목 3\n- 소제목 4\n\n---\n\n"
+        toc = "\u3164\n\n## 📑 목차\n- 소제목 1\n- 소제목 2\n- 소제목 3\n- 소제목 4\n\n---\n\n"
         return (fm + "<!-- 제목 B안: 다른 제목 후보 -->\n\n# 지게차운전기능사 실기 순서\n\n도입 문단입니다.\n\n" + toc
                 + "\n".join(secs) + extra + "\n" + closing)
 
@@ -220,7 +220,7 @@ class NaverUploadTest(unittest.TestCase):
         self.assertNotIn("\n# ", "\n" + body)
         self.assertNotIn("title:", body)
         self.assertIn("## 2\ufe0f\u20e3 소제목 2", body)
-        self.assertIn("\u3164\n## 1\ufe0f\u20e3", body)          # ㅤ 여백 줄 보존
+        self.assertIn("\u3164\n\n## 1\ufe0f\u20e3", body)        # ㅤ 여백 줄 + 빈 줄 보존
         self.assertIn(":::place 클라크중장비운전학원:::", body)
         self.assertIn("\n**#지게차운전기능사 ", body)                # 해시태그 줄 보존
         self.assertNotIn("00-cover", body)                          # 표지는 본문이 아니라 폴더 images/ 로
