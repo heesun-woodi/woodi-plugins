@@ -2,7 +2,10 @@ import os
 import subprocess
 import sys
 import tempfile
+import ntpath
+import re
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(os.path.dirname(HERE), "build_final.py")
@@ -108,6 +111,24 @@ class BuildFinalTest(unittest.TestCase):
         return ls[i - k:i]
 
     # --- 정상 변환 ---
+    def test_md_path_uses_forward_slashes(self):
+        # Windows 에서 본문 이미지 경로는 C:/... (lint image_paths·naver_upload 는 os.path.isabs 로 판정 — ntpath 에선 절대경로)
+        with mock.patch.object(build_final.os, "sep", "\\"):
+            self.assertEqual(build_final.md_path("C:\\Users\\me\\img.png"), "C:/Users/me/img.png")
+        self.assertEqual(build_final.md_path("/Users/me/img.png"), "/Users/me/img.png")   # macOS 그대로
+        self.assertTrue(ntpath.isabs("C:/Users/me/img.png"))
+
+    def test_text_writes_force_lf(self):
+        # Windows 에서 텍스트 파일이 CRLF 로 써지지 않게, 쓰기 모드 open/fdopen 은 모두 newline="\n"
+        scripts = os.path.dirname(HERE)
+        for name in sorted(os.listdir(scripts)):
+            if not name.endswith(".py"):
+                continue
+            with open(os.path.join(scripts, name), encoding="utf-8") as f:
+                for ln, line in enumerate(f, 1):
+                    if re.search(r"\b(open|fdopen)\(.*[\"']w[\"']", line):
+                        self.assertIn('newline="\\n"', line, f"{name}:{ln}")
+
     def test_normal_build(self):
         p, text = self.run_build()
         self.assertEqual(p.returncode, 0, p.stderr)

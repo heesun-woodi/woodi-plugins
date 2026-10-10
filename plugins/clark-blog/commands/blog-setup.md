@@ -12,6 +12,18 @@ allowed-tools: Bash, Read, Write, Glob, Skill
 
 ---
 
+## 0. OS 확인 (Windows는 Git for Windows 필수)
+
+아래 모든 블록은 bash 문법이다. macOS 터미널, 또는 Windows의 **Git Bash**(Git for Windows에 포함 — Claude Code의 Bash 도구가 이것으로 돈다)에서만 동작한다. 먼저 한 번 확인한다.
+
+```bash
+uname -s
+```
+
+- `Darwin` → macOS. 1단계로.
+- `MINGW*`·`MSYS*` → **Windows(Git Bash)**. 1단계로. 4단계 설치 안내는 **Windows 갈래**(PowerShell 명령)만 보여 준다.
+- 명령이 실패하거나 PowerShell 오류(`uname`을 찾을 수 없음 등)가 나오면 Bash 도구가 Git Bash가 아니다 → "Windows에서는 Git for Windows가 필요합니다(https://git-scm.com/downloads/win). 설치한 뒤 Claude Code를 완전히 닫았다가 다시 열고 `/clark-blog:blog-setup`을 다시 실행하세요." 안내 후 **중단**.
+
 ## 1. 작업 폴더 확정
 
 `$ARGUMENTS`가 있으면 그 폴더(없으면 만들고)로, 없으면 현재 폴더로 이동한다. `~`·`~/…`는 홈 폴더로 펼친다(따옴표 때문에 셸이 펼치지 않으므로).
@@ -29,10 +41,11 @@ else
   mkdir -p "$TARGET" && cd "$TARGET" || { echo "폴더를 만들거나 열 수 없습니다: $TARGET"; exit 1; }
   TARGET="$PWD"   # 절대경로로 고정
   echo "작업 폴더: $TARGET"
+  command -v cygpath >/dev/null 2>&1 && echo "작업 폴더(Windows 경로): $(cygpath -w "$TARGET")"
 fi
 ```
 
-출력된 `작업 폴더:` **절대경로**를 기억한다. Bash 호출마다 cwd가 처음으로 돌아갈 수 있으므로, 2·3단계 Bash 블록은 첫 줄 `cd "<그 절대경로>" || exit 1`로 시작한다(아래 블록의 `<작업 폴더 절대경로>` 자리에 그대로 넣는다).
+출력된 `작업 폴더:` **절대경로**를 기억한다. Windows면 `작업 폴더(Windows 경로):`(`C:\Users\…`)도 기억해 4단계 PowerShell 명령의 `<작업 폴더 Windows 경로>` 자리에 넣는다. Bash 호출마다 cwd가 처음으로 돌아갈 수 있으므로, 2·3단계 Bash 블록은 첫 줄 `cd "<그 절대경로>" || exit 1`로 시작한다(아래 블록의 `<작업 폴더 절대경로>` 자리에 그대로 넣는다).
 
 `REFUSE`가 나오면 "작업 폴더는 플러그인 저장소 밖(예: ~/clark-blog)이어야 합니다. 다른 폴더를 알려주세요."라고 안내하고 중단한다.
 
@@ -44,15 +57,25 @@ fi
 
 ```bash
 cd "<작업 폴더 절대경로>" || exit 1
+PYUTF8_BEFORE="${PYTHONUTF8:-}"
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+export PYTHONUTF8=1   # Windows cp949 콘솔에서 이모지 출력 오류 방지 (macOS 영향 없음)
+echo "--- OS ---"
+IS_WIN=no
+case "$(uname -s)" in MINGW*|MSYS*) IS_WIN=yes; echo "OS: Windows(Git Bash)";; Darwin) echo "OS: macOS";; *) echo "OS: $(uname -s)";; esac
+[ "$IS_WIN" = yes ] && { [ "$PYUTF8_BEFORE" = 1 ] && echo "PYTHONUTF8: OK (영구 설정됨)" || echo "PYTHONUTF8: NOT_SET (setx PYTHONUTF8 1 필요)"; }
+LAD="${LOCALAPPDATA:-}"; WD="${WINDIR:-${windir:-${SYSTEMROOT:-}}}"
+if command -v cygpath >/dev/null 2>&1; then [ -n "$LAD" ] && LAD="$(cygpath -u "$LAD")"; [ -n "$WD" ] && WD="$(cygpath -u "$WD")"; fi
 echo "--- uv ---"
 if command -v uv >/dev/null 2>&1; then echo "uv: OK ($(uv --version))"; else echo "uv: MISSING"; fi
 echo "--- python ---"
-if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)' 2>/dev/null; then
+PY3="$(command -v python3 2>/dev/null)"
+if [ -n "$PY3" ] && python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)' 2>/dev/null; then
   echo "python3: OK ($(python3 --version 2>&1))"
-else echo "python3: MISSING_OR_OLD (3.11 이상 필요: $(python3 --version 2>&1))"; fi
+elif echo "$PY3" | grep -qi 'WindowsApps'; then echo "python3: MISSING_OR_OLD (Microsoft Store 별칭만 있음: $PY3)"
+else echo "python3: MISSING_OR_OLD (3.11 이상 필요: $(python3 --version 2>&1 | head -1))"; fi
 echo "--- playwright chromium ---"
-PW_DIRS=$(ls ~/Library/Caches/ms-playwright ~/.cache/ms-playwright 2>/dev/null | grep -c chromium)
+PW_DIRS=$(ls ~/Library/Caches/ms-playwright ~/.cache/ms-playwright ${LAD:+"$LAD/ms-playwright"} 2>/dev/null | grep -c chromium)
 PW_PY=$(python3 -c "import playwright" 2>/dev/null && echo yes || echo no)
 if [ "$PW_DIRS" -gt 0 ]; then echo "chromium: OK (ms-playwright 캐시 ${PW_DIRS}개, python playwright 모듈: $PW_PY)"
 else echo "chromium: MISSING (python playwright 모듈: $PW_PY)"; fi
@@ -62,15 +85,16 @@ else echo "naver-blog-cli: MISSING"; fi
 echo "--- naver 세션 ---"
 BLOG_ID=pajuclark
 [ -f knowledge/source-blogs.json ] && command -v python3 >/dev/null 2>&1 && \
-  BLOG_ID=$(python3 -c "import json;o=json.load(open('knowledge/source-blogs.json')).get('own_blog');print((o.get('blogId') if isinstance(o,dict) else o) or 'pajuclark')" 2>/dev/null || echo pajuclark)
+  BLOG_ID=$( { python3 -c "import json;o=json.load(open('knowledge/source-blogs.json',encoding='utf-8')).get('own_blog');print((o.get('blogId') if isinstance(o,dict) else o) or 'pajuclark')" 2>/dev/null || echo pajuclark; } | tr -d '\r')
 if command -v naver-blog-cli >/dev/null 2>&1; then
-  SESS=$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli check-session 2>&1)
+  SESS=$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli check-session 2>&1 | tr -d '\r')
   if echo "$SESS" | grep -q '세션 정상' && echo "$SESS" | grep -q '글쓰기 가능'; then
     # check-session 은 다른 계정 세션도 통과시킨다 → 글쓰기 화면이 $BLOG_ID 블로그로 열리는지 확인 (헤드리스, 글은 안 씀)
-    CLI_PY="$(uv tool dir 2>/dev/null)/naver-blog-cli/bin/python"
+    UVT="$(uv tool dir 2>/dev/null)"; command -v cygpath >/dev/null 2>&1 && [ -n "$UVT" ] && UVT="$(cygpath -u "$UVT")"
+    CLI_PY=""; for c in "$UVT/naver-blog-cli/bin/python" "$UVT/naver-blog-cli/Scripts/python.exe"; do [ -x "$c" ] && { CLI_PY="$c"; break; }; done
     CHK="${CLAUDE_PLUGIN_ROOT}/scaffold/scripts/check_blog_account.py"
-    if [ -x "$CLI_PY" ] && [ -f "$CHK" ]; then
-      ACCT=$("$CLI_PY" "$CHK" "$BLOG_ID" 2>&1); ACCT_RC=$?
+    if [ -n "$CLI_PY" ] && [ -f "$CHK" ]; then
+      ACCT=$("$CLI_PY" "$CHK" "$BLOG_ID" 2>&1 | tr -d '\r'; exit "${PIPESTATUS[0]}"); ACCT_RC=$?
       case "$ACCT_RC" in
         0) echo "session: OK (blogId=$BLOG_ID, 계정 확인됨)" ;;
         21) echo "session: WRONG_ACCOUNT (blogId=$BLOG_ID) — $(echo "$ACCT" | tail -1)" ;;
@@ -86,8 +110,10 @@ elif [ -f .env ] && grep -q '^GEMINI_API_KEY=.' .env; then echo "GEMINI_API_KEY:
 else echo "GEMINI_API_KEY: MISSING"; fi
 [ -f knowledge/design-system.md ] && echo "design-system.md: OK" || echo "design-system.md: MISSING (경고만, 오류 아님)"
 echo "--- 표지·마무리 자산 ---"
-if [ -f "$HOME/Library/Fonts/Pretendard-ExtraBold.otf" ]; then echo "font: OK (Pretendard)"
+# 글꼴: macOS(Pretendard·AppleSDGothicNeo) / Windows(Pretendard 사용자·시스템 설치, 맑은 고딕 Bold) — LAD·WD는 위 OS 절에서 cygpath로 변환됨
+if [ -f "$HOME/Library/Fonts/Pretendard-ExtraBold.otf" ] || { [ -n "$LAD" ] && [ -f "$LAD/Microsoft/Windows/Fonts/Pretendard-ExtraBold.otf" ]; } || { [ -n "$WD" ] && [ -f "$WD/Fonts/Pretendard-ExtraBold.otf" ]; }; then echo "font: OK (Pretendard)"
 elif [ -f /System/Library/Fonts/AppleSDGothicNeo.ttc ]; then echo "font: OK (AppleSDGothicNeo — Pretendard 권장)"
+elif [ -n "$WD" ] && [ -f "$WD/Fonts/malgunbd.ttf" ]; then echo "font: OK (맑은 고딕 — Pretendard 권장)"
 else echo "font: MISSING"; fi
 [ -f photos/학원소개.png ] && echo "academy-image: OK" || echo "academy-image: MISSING"
 ```
@@ -117,8 +143,10 @@ for f in knowledge/*.md; do grep -q 'Task [0-9]*에서 채움' "$f" && cp "${CLA
 
 | 항목 | 상태 | 조치 |
 |---|---|---|
+| OS | macOS / Windows(Git Bash) | - (Windows면 아래 설치 명령은 Windows 갈래 — PowerShell 창에서 실행) |
+| PYTHONUTF8 (Windows만) | OK / NOT_SET | 아래 Windows 명령 `setx PYTHONUTF8 1` (새 창부터 적용 — Claude Code를 다시 열기) |
 | uv | OK / MISSING | 아래 명령(표지 합성·이미지 생성이 `uv run --with pillow …`로 돈다 — 시스템 python3에는 Pillow가 없음) |
-| python3 ≥ 3.11 | OK / MISSING | 3.11 이상 설치 (scaffold 스크립트용. naver-blog-cli는 uv가 자체 Python을 씀) |
+| python3 ≥ 3.11 | OK / MISSING | 3.11 이상 설치 (scaffold 스크립트용. naver-blog-cli는 uv가 자체 Python을 씀). **Windows**: `uv python install 3.12 --default`(`python`·`python3` 실행 파일을 `~\.local\bin`에 만듦) + 설정 → 앱 → 고급 앱 설정 → **앱 실행 별칭**에서 `python.exe`·`python3.exe`(앱 설치 관리자) 끄기 — `Microsoft Store 별칭만 있음`이 나오면 이 경우 |
 | Playwright Chromium | OK / MISSING | 아래 명령 |
 | naver-blog-cli | OK / MISSING | 아래 명령 |
 | 네이버 세션 | 정상 / 로그인 필요 / 다른 계정 로그인 | 아래 로그인 절차. **다른 계정 로그인**(`WRONG_ACCOUNT` — 세션은 살아 있지만 글쓰기 화면이 다른 블로그로 이동)이면 출력의 이동 주소를 보여 주고 `<blogId>` 블로그 계정으로 로그인 절차를 다시 하라고 안내(기존 세션 파일을 덮어씀). 블로그 주소가 틀렸다면 `knowledge/source-blogs.json`의 `own_blog`를 고친다 |
@@ -127,28 +155,55 @@ for f in knowledge/*.md; do grep -q 'Task [0-9]*에서 채움' "$f" && cp "${CLA
 | photos/학원소개.png | OK / MISSING | 아래 안내 |
 | knowledge/design-system.md | OK / 없음(경고) | 5단계 안내 |
 
-**누락된 항목에 대해서만** 그대로 실행할 수 있는 명령을 코드블록으로 출력한다.
+**누락된 항목에 대해서만** 그대로 실행할 수 있는 명령을 코드블록으로 출력한다. 진단의 `OS:` 값에 맞는 갈래만 보여 준다. macOS 명령은 **터미널**에서, Windows 명령은 **PowerShell 창**(시작 → "PowerShell")에서 실행한다 — 둘 다 Claude 입력창이 아니다.
 
 - uv
-  ```bash
-  curl -LsSf https://astral.sh/uv/install.sh | sh
+  - macOS:
+    ```bash
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
+  - Windows:
+    ```powershell
+    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    ```
+- python3 (Windows — Microsoft Store 별칭은 실제로 실행되지 않는다)
+  ```powershell
+  uv python install 3.12 --default
   ```
+  그다음 설정 → 앱 → 고급 앱 설정 → **앱 실행 별칭**에서 `python.exe`·`python3.exe`(앱 설치 관리자)를 끄고 Claude Code를 다시 연다.
+- PYTHONUTF8 (Windows만, 1회 — 한글 Windows 콘솔(cp949)에서 스크립트의 이모지 출력이 죽지 않게)
+  ```powershell
+  setx PYTHONUTF8 1
+  ```
+  새로 여는 창부터 적용된다. Claude Code를 닫았다가 다시 연다.
 - Playwright Chromium
-  ```bash
-  uv run --with playwright playwright install chromium
-  # naver-blog-cli 설치 후에는: "$(uv tool dir)/naver-blog-cli/bin/playwright" install chromium
-  ```
-- naver-blog-cli (PATH에 `~/.local/bin` 필요)
+  - macOS:
+    ```bash
+    uv run --with playwright playwright install chromium
+    # naver-blog-cli 설치 후에는: "$(uv tool dir)/naver-blog-cli/bin/playwright" install chromium
+    ```
+  - Windows (naver-blog-cli 설치 후):
+    ```powershell
+    & "$(uv tool dir)\naver-blog-cli\Scripts\playwright.exe" install chromium
+    ```
+- naver-blog-cli (PATH에 `~/.local/bin` 필요 — Windows는 `%USERPROFILE%\.local\bin`. macOS 터미널·PowerShell 모두 같은 명령)
   ```bash
   uv tool install git+https://github.com/spegas/naver-blog-cli
   ```
-- 네이버 로그인 (**사람이 직접, 1회**). 로그인 스크립트는 설치본에 없으므로 저장소를 clone해서 쓴다. Claude 입력창이 아니라 **터미널에서**, 반드시 **작업 폴더에서** 실행한다. 세션 파일이 `<작업 폴더>/playwright-state/storage_state.json`에 저장된다.
-  ```bash
-  [ -d ~/naver-blog-cli ] || git clone https://github.com/spegas/naver-blog-cli ~/naver-blog-cli
-  cd "<작업 폴더 절대경로>"
-  NAVER_STATE="$PWD/playwright-state/storage_state.json" \
-    "$(uv tool dir)/naver-blog-cli/bin/python" ~/naver-blog-cli/login_setup.py
-  ```
+- 네이버 로그인 (**사람이 직접, 1회**). 로그인 스크립트는 설치본에 없으므로 저장소를 clone해서 쓴다. Claude 입력창이 아니라 **터미널(Windows는 PowerShell)에서**, 반드시 **작업 폴더에서** 실행한다. 세션 파일이 `<작업 폴더>/playwright-state/storage_state.json`에 저장된다.
+  - macOS:
+    ```bash
+    [ -d ~/naver-blog-cli ] || git clone https://github.com/spegas/naver-blog-cli ~/naver-blog-cli
+    cd "<작업 폴더 절대경로>"
+    NAVER_STATE="$PWD/playwright-state/storage_state.json" \
+      "$(uv tool dir)/naver-blog-cli/bin/python" ~/naver-blog-cli/login_setup.py
+    ```
+  - Windows (PowerShell, `<작업 폴더 Windows 경로>`는 1단계의 `작업 폴더(Windows 경로):` 값):
+    ```powershell
+    if (-not (Test-Path "$HOME\naver-blog-cli")) { git clone https://github.com/spegas/naver-blog-cli "$HOME\naver-blog-cli" }
+    cd "<작업 폴더 Windows 경로>"
+    $env:NAVER_STATE = "$PWD\playwright-state\storage_state.json"; & "$(uv tool dir)\naver-blog-cli\Scripts\python.exe" "$HOME\naver-blog-cli\login_setup.py"
+    ```
   안내 문구: "브라우저 창이 열리면 직접 로그인하세요. **'로그인 상태 유지'를 반드시 체크**하고, 캡차·2단계 인증·기기 등록도 직접 처리해 주세요. 비밀번호는 저장되지 않고 쿠키 파일만 만들어집니다. 쿠키 파일(`playwright-state/`)은 계정 접근권한 그 자체라 공유·커밋하면 안 됩니다. 로그인 뒤 `/clark-blog:blog-setup`을 다시 실행하면 세션이 '정상'으로 바뀝니다."
 - GEMINI_API_KEY
   ```
@@ -161,8 +216,12 @@ for f in knowledge/*.md; do grep -q 'Task [0-9]*에서 채움' "$f" && cp "${CLA
 - 한글 폰트(표지 합성용, `scripts/make_cover.py`)
   ```
   대표이미지(표지)에 제목을 얹으려면 한글 폰트가 필요합니다. Pretendard를 받아(https://github.com/orioncactus/pretendard/releases)
-  Pretendard-ExtraBold.otf·Pretendard-SemiBold.otf를 ~/Library/Fonts/ 에 넣어 주세요.
-  (macOS 기본 /System/Library/Fonts/AppleSDGothicNeo.ttc가 있으면 그것으로도 만들 수 있습니다. 둘 다 없으면 /clark-blog:blog-run이 멈춥니다.)
+  Pretendard-ExtraBold.otf·Pretendard-SemiBold.otf를 설치해 주세요.
+  - macOS: 두 파일을 ~/Library/Fonts/ 에 넣습니다.
+    (macOS 기본 /System/Library/Fonts/AppleSDGothicNeo.ttc가 있으면 그것으로도 만들 수 있습니다.)
+  - Windows: 두 파일을 각각 우클릭 → "설치"(또는 "모든 사용자용으로 설치")합니다.
+    (Windows 기본 맑은 고딕 Bold C:\Windows\Fonts\malgunbd.ttf가 있으면 그것으로도 만들 수 있습니다.)
+  글꼴이 하나도 없으면 /clark-blog:blog-run이 멈춥니다.
   ```
 - photos/학원소개.png
   ```

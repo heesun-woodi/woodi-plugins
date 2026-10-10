@@ -3,6 +3,10 @@
 import argparse
 import json
 import re
+import sys
+for _s in (sys.stdout, sys.stderr):  # Windows 콘솔(cp949)에서도 한글·이모지 출력이 죽지 않게
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
 REGIONS = ["서울","경기북부","의정부","양주","동두천","포천","남양주","파주","일산","고양","구리","도봉구","인천","평택","연천","논산","탄현"]
 PROMO = ["개강안내","개강","모집안내","모집","일정안내","안내","정원","마감","접수중","수시","재직자","주말반","주중반","야간반","평일반","소수정예반","완성반"]
 STRIP = ["중장비학원","중장비운전학원","지게차학원","학원"]

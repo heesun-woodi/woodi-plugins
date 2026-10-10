@@ -26,6 +26,9 @@ import json
 import os
 import re
 import sys
+for _s in (sys.stdout, sys.stderr):  # Windows 콘솔(cp949)에서도 한글·이모지 출력이 죽지 않게
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
 
 # lint 블록이 없을 때의 기본 임계값. chars는 목차 절·해시태그 줄·ㅤ 제외, h2는 목차·문의 헤딩 제외,
 # images는 표지(00-cover)·학원소개 제외 기준이다(모듈 docstring의 카운트 제외 규칙).

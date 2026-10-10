@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 try:
@@ -67,6 +68,62 @@ class MakeCoverTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("배경", err)
 
+
+
+class FontCandidatesTest(unittest.TestCase):
+    """글꼴 탐색 순서(계약 B) — 실제 글꼴 없이 후보 목록·선택만 본다(Pillow 불필요)."""
+
+    def test_order_with_windows_env(self):
+        env = {"LOCALAPPDATA": os.path.join("L"), "WINDIR": os.path.join("W")}
+        title, sub = make_cover.font_candidates("FD", True, env)
+        lw = os.path.join("L", "Microsoft", "Windows", "Fonts")
+        wf = os.path.join("W", "Fonts")
+        self.assertEqual([p for p, _ in title], [
+            os.path.join("FD", "Pretendard-ExtraBold.otf"),
+            os.path.join(make_cover.USER_FONT_DIR, "Pretendard-ExtraBold.otf"),
+            os.path.join(lw, "Pretendard-ExtraBold.otf"),
+            os.path.join(wf, "Pretendard-ExtraBold.otf"),
+            make_cover.APPLE_TTC,
+            os.path.join(wf, "malgunbd.ttf")])
+        self.assertEqual([p for p, _ in sub][-1], os.path.join(wf, "malgun.ttf"))
+        self.assertEqual([p for p, _ in sub][2], os.path.join(lw, "Pretendard-SemiBold.otf"))
+
+    def test_missing_env_skips_windows(self):
+        title, sub = make_cover.font_candidates(None, True, {})
+        self.assertEqual([p for p, _ in title], [os.path.join(make_cover.USER_FONT_DIR, "Pretendard-ExtraBold.otf"),
+                                                 make_cover.APPLE_TTC])
+        self.assertEqual(len(sub), 2)
+
+    def test_no_system_fonts_only_font_dir(self):
+        env = {"LOCALAPPDATA": "L", "WINDIR": "W"}
+        title, sub = make_cover.font_candidates("FD", False, env)
+        self.assertEqual(title, [(os.path.join("FD", "Pretendard-ExtraBold.otf"), 0)])
+        self.assertEqual(sub, [(os.path.join("FD", "Pretendard-SemiBold.otf"), 0)])
+        self.assertEqual(make_cover.font_candidates(None, False, env), ([], []))
+
+    def test_find_fonts_windows_fallbacks(self):
+        with tempfile.TemporaryDirectory() as t, \
+                mock.patch.object(make_cover, "USER_FONT_DIR", os.path.join(t, "nope")), \
+                mock.patch.object(make_cover, "APPLE_TTC", os.path.join(t, "nope.ttc")):
+            local, win = os.path.join(t, "local"), os.path.join(t, "win")
+            env = {"LOCALAPPDATA": local, "WINDIR": win}
+            self.assertIsNone(make_cover.find_fonts(env=env))
+            os.makedirs(os.path.join(win, "Fonts"))
+            for n in ("malgunbd.ttf", "malgun.ttf"):
+                open(os.path.join(win, "Fonts", n), "wb").close()
+            self.assertEqual(make_cover.find_fonts(env=env), ((os.path.join(win, "Fonts", "malgunbd.ttf"), 0),
+                                                              (os.path.join(win, "Fonts", "malgun.ttf"), 0)))
+            self.assertIsNone(make_cover.find_fonts(env=env, system=False))
+            ud = os.path.join(local, "Microsoft", "Windows", "Fonts")
+            os.makedirs(ud)
+            open(os.path.join(ud, "Pretendard-ExtraBold.otf"), "wb").close()
+            title, sub = make_cover.find_fonts(env=env)
+            self.assertEqual(title, (os.path.join(ud, "Pretendard-ExtraBold.otf"), 0))   # 사용자 글꼴 Pretendard 우선
+            self.assertEqual(sub, (os.path.join(win, "Fonts", "malgun.ttf"), 0))
+
+    def test_no_font_message_mentions_windows(self):
+        self.assertIn("한글 폰트 없음", make_cover.NO_FONT_MSG)
+        self.assertIn("malgunbd.ttf", make_cover.NO_FONT_MSG)
 
 if __name__ == "__main__":
     unittest.main()

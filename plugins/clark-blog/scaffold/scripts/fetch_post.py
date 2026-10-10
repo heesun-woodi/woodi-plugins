@@ -29,6 +29,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
+for _s in (sys.stdout, sys.stderr):  # Windows 콘솔(cp949)에서도 한글·이모지 출력이 죽지 않게
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
 
 UA = "Mozilla/5.0"
 TIMEOUT = 20
@@ -380,7 +383,7 @@ def main():
     else:
         out = "```json\n" + json.dumps(stats, ensure_ascii=False, indent=2) + "\n```\n\n" + md
     if args.out:
-        with open(args.out, "w", encoding="utf-8") as f:
+        with open(args.out, "w", encoding="utf-8", newline="\n") as f:
             f.write(out + "\n")
         print(f"저장 -> {args.out}", file=sys.stderr)
     else:

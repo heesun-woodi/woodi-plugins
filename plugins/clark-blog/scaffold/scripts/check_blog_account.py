@@ -1,7 +1,8 @@
 """check_blog_account.py — 세션의 로그인 계정이 대상 블로그에 글을 쓸 수 있는지 확인 (글은 쓰지 않는다).
 
 사용 (naver-blog-cli 가 깔린 uv tool 의 python 으로, 작업 폴더에서):
-    "$(uv tool dir)/naver-blog-cli/bin/python" scripts/check_blog_account.py <blogId>
+    "$(uv tool dir)/naver-blog-cli/bin/python" scripts/check_blog_account.py <blogId>          # macOS·Linux
+    "$(uv tool dir)\\naver-blog-cli\\Scripts\\python.exe" scripts/check_blog_account.py <blogId>  # Windows(Git Bash)
 
 naver-blog-cli check-session 은 글쓰기 화면에서 iframe(#mainFrame)이 붙는지만 본다.
 다른 계정으로 로그인돼 있으면 https://blog.naver.com/<blogId>?Redirect=Write 가
@@ -22,6 +23,9 @@ import asyncio
 import os
 import sys
 from urllib.parse import parse_qs, urlsplit
+for _s in (sys.stdout, sys.stderr):  # Windows 콘솔(cp949)에서도 한글·이모지 출력이 죽지 않게
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
 
 LOGIN_HOST = "nid.naver.com"
 

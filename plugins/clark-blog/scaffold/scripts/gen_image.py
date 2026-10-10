@@ -25,6 +25,9 @@ import re
 import sys
 import tempfile
 import time
+for _s in (sys.stdout, sys.stderr):  # Windows 콘솔(cp949)에서도 한글·이모지 출력이 죽지 않게
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
 
 DEFAULT_MODEL = "gemini-3-pro-image"  # product-mockup generate_scenes.py와 같은 모델
 MAX_RETRIES = 3
@@ -215,7 +218,7 @@ def write_plan_atomic(path, content):
     d = os.path.dirname(os.path.abspath(path))
     fd, tmp = tempfile.mkstemp(prefix=".image-plan-", suffix=".tmp", dir=d)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
             f.write(content)
         os.replace(tmp, path)
     except BaseException:

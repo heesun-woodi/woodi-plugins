@@ -24,6 +24,9 @@ import argparse
 import os
 import re
 import sys
+for _s in (sys.stdout, sys.stderr):  # Windows 콘솔(cp949)에서도 한글·이모지 출력이 죽지 않게
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -41,6 +44,11 @@ LEFT_SOURCE_RE = re.compile(r"출처\s*:")
 LINK_SOURCE_RE = re.compile(r"\[출처\]\(")
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
 COMMENT_RE = re.compile(r"<!--.*?-->")
+
+
+def md_path(p):
+    """본문에 쓰는 이미지 절대경로는 구분자를 / 로 (Windows C:\\a\\b → C:/a/b, macOS는 그대로)."""
+    return p.replace(os.sep, "/")
 
 
 def is_filler(line):
@@ -173,7 +181,7 @@ def build(post_dir, photos_dir, kdir):
                 continue
             if not os.path.isfile(a):
                 errs.append(f"{k}: 파일 없음 {a}")
-            out.append(f"![]({a})")
+            out.append(f"![]({md_path(a)})")
             continue
         # ③ 출처 괄호 제거
         line, c = SOURCE_RE.subn("", line)
@@ -211,7 +219,7 @@ def build(post_dir, photos_dir, kdir):
 
     while out and not out[-1].strip():
         out.pop()
-    out += [f"![]({academy})", f":::place {read_place_query(kdir)}:::", "",
+    out += [f"![]({md_path(academy)})", f":::place {read_place_query(kdir)}:::", "",
             "**" + " ".join("#" + t for t in tags) + "**"]
 
     # ⑦ 연속 빈 줄 정리(ㅤ 줄은 빈 줄이 아니므로 그대로)
@@ -253,7 +261,7 @@ def main(argv=None):
             os.remove(final_path)
             print(f"이전 final.md 삭제: {final_path}", file=sys.stderr)
         return 1
-    with open(final_path, "w", encoding="utf-8") as f:
+    with open(final_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
     print(summary)
     return 0

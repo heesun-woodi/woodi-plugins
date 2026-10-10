@@ -20,6 +20,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Skill, Agent, SendMessage, A
 - **cwd = 작업 폴더**(`knowledge/`·`scripts/`·`work/`가 있는 폴더). 모든 경로는 작업 폴더 기준. 글 폴더는 `work/posts/<NNN-slug>/`(아래에서 `P`).
 - **메인만 하는 일**: 사용자 게이트 3개(AskUserQuestion), `P/gates.md` 기록, 주제 리서치(Step 1)·이미지와 표지 합성(Step 3)·`final.md` 작성 = `scripts/build_final.py` 실행(Step 4)·업로드(Step 5), `work/variation-log.md` 기록.
 - **Pillow가 필요한 스크립트**(`make_cover.py`·`gen_image.py`)는 항상 `uv run --with pillow …`(gen_image는 `--with google-genai`도)로 실행한다. 시스템 `python3`에는 Pillow가 없다. `build_final.py`·`lint_post.py`는 표준 라이브러리만 써서 `python3`로 돌린다.
+- **Windows(Git Bash)**: Bash 호출마다 셸이 새로 뜨므로, cp949 콘솔에서 스크립트의 이모지 출력이 `UnicodeEncodeError`로 죽지 않게 `PYTHONUTF8=1`이 영구 설정돼 있어야 한다(`/clark-blog:blog-setup`의 `setx PYTHONUTF8 1`). 설정 전이면 python 명령 앞에 `PYTHONUTF8=1 `을 붙인다. Step 0 블록은 스스로 `export PYTHONUTF8=1`을 한다.
 - **서브에이전트는 2개뿐**이고 플러그인 네임스페이스로 부른다: `clark-blog:blog-writer`(B·B'), `clark-blog:blog-fact-checker`(C). model은 넘기지 않는다(에이전트 정의의 `opus`).
   발주 프롬프트에는 **경로만** 넣는다(내용을 붙여넣지 않는다). 절차 스킬은 `${CLAUDE_PLUGIN_ROOT}`가 펼쳐진 **절대경로** 그대로 넣는다.
 - **서브에이전트는 사용자에게 묻지 않는다.** 질문은 반환 메시지·`factcheck.md`·`seo.md`의 `## 질문`(또는 "메인에 전달") 절로 돌아온다 → 메인이 AskUserQuestion으로 이랑에게 묻고, 답을 `gates.md`에 기록한 뒤 다음 발주·재개 메시지에 원문으로 넣는다.
@@ -39,7 +40,10 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Skill, Agent, SendMessage, A
 한 번의 Bash 호출로 확인한다. 키 값은 출력하지 않는다. `naver-blog-cli`는 종료 코드가 항상 0이므로 **stdout 문구**(`세션 정상` + `글쓰기 가능`)로 판정한다. `check-session`은 **다른 계정으로 로그인된 세션도 통과**시키므로(글쓰기 화면이 그 계정 블로그로 리다이렉트돼도 iframe이 붙음, 2026-10-09 실측), 세션이 정상이면 `scripts/check_blog_account.py`로 글쓰기 화면이 `<blogId>` 블로그로 열리는지 한 번 더 본다(헤드리스, 창 안 뜸, 약 10초, 글은 쓰지 않음).
 
 ```bash
+PYUTF8_BEFORE="${PYTHONUTF8:-}"
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+export PYTHONUTF8=1   # Windows cp949 콘솔에서 이모지 출력 오류 방지 (macOS 영향 없음)
+case "$(uname -s)" in MINGW*|MSYS*) [ "$PYUTF8_BEFORE" = 1 ] || echo "PYTHONUTF8: NOT_SET (setx PYTHONUTF8 1 후 Claude Code 다시 시작)";; esac
 echo "작업 폴더: $PWD"
 [ -d knowledge ] && [ -d scripts ] && echo "work-folder: OK" || echo "work-folder: MISSING"
 if [ -n "$GEMINI_API_KEY" ]; then echo "GEMINI_API_KEY: env에 있음"
@@ -50,7 +54,12 @@ MINIMG=$(grep -o 'min_images=[0-9]*' knowledge/design-system.md 2>/dev/null | he
 echo "min_images: ${MINIMG:-5}"
 echo "photos: $(find photos -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) ! -name '학원소개.png' 2>/dev/null | wc -l | tr -d ' ')"
 [ -f photos/학원소개.png ] && echo "academy-image: OK" || echo "academy-image: MISSING"
-if [ -f "$HOME/Library/Fonts/Pretendard-ExtraBold.otf" ] || [ -f /System/Library/Fonts/AppleSDGothicNeo.ttc ]; then echo "font: OK"
+# 글꼴: macOS(Pretendard·AppleSDGothicNeo) / Windows(Pretendard 사용자·시스템 설치, 맑은 고딕 Bold)
+LAD="${LOCALAPPDATA:-}"; WD="${WINDIR:-${windir:-${SYSTEMROOT:-}}}"
+if command -v cygpath >/dev/null 2>&1; then [ -n "$LAD" ] && LAD="$(cygpath -u "$LAD")"; [ -n "$WD" ] && WD="$(cygpath -u "$WD")"; fi
+if [ -f "$HOME/Library/Fonts/Pretendard-ExtraBold.otf" ] || { [ -n "$LAD" ] && [ -f "$LAD/Microsoft/Windows/Fonts/Pretendard-ExtraBold.otf" ]; } || { [ -n "$WD" ] && [ -f "$WD/Fonts/Pretendard-ExtraBold.otf" ]; }; then echo "font: OK (Pretendard)"
+elif [ -f /System/Library/Fonts/AppleSDGothicNeo.ttc ]; then echo "font: OK (AppleSDGothicNeo — Pretendard 권장)"
+elif [ -n "$WD" ] && [ -f "$WD/Fonts/malgunbd.ttf" ]; then echo "font: OK (맑은 고딕 — Pretendard 권장)"
 else echo "font: MISSING"; fi
 command -v uv >/dev/null 2>&1 && echo "uv: OK" || echo "uv: MISSING"
 for s in fetch_posts.py fetch_post.py dedupe_check.py lint_post.py gen_image.py make_cover.py build_final.py naver_upload.sh check_blog_account.py; do
@@ -59,14 +68,15 @@ for s in fetch_posts.py fetch_post.py dedupe_check.py lint_post.py gen_image.py 
 done
 BLOG_ID=pajuclark
 [ -f knowledge/source-blogs.json ] && \
-  BLOG_ID=$(python3 -c "import json;o=json.load(open('knowledge/source-blogs.json')).get('own_blog');print((o.get('blogId') if isinstance(o,dict) else o) or 'pajuclark')" 2>/dev/null || echo pajuclark)
+  BLOG_ID=$( { python3 -c "import json;o=json.load(open('knowledge/source-blogs.json',encoding='utf-8')).get('own_blog');print((o.get('blogId') if isinstance(o,dict) else o) or 'pajuclark')" 2>/dev/null || echo pajuclark; } | tr -d '\r')
 echo "blogId: $BLOG_ID"
 if command -v naver-blog-cli >/dev/null 2>&1; then
-  SESS=$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli check-session 2>&1)
+  SESS=$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli check-session 2>&1 | tr -d '\r')
   if echo "$SESS" | grep -q '세션 정상' && echo "$SESS" | grep -q '글쓰기 가능'; then
-    CLI_PY="$(uv tool dir 2>/dev/null)/naver-blog-cli/bin/python"
-    if [ -x "$CLI_PY" ] && [ -f scripts/check_blog_account.py ]; then
-      ACCT=$("$CLI_PY" scripts/check_blog_account.py "$BLOG_ID" 2>&1); ACCT_RC=$?
+    UVT="$(uv tool dir 2>/dev/null)"; command -v cygpath >/dev/null 2>&1 && [ -n "$UVT" ] && UVT="$(cygpath -u "$UVT")"
+    CLI_PY=""; for c in "$UVT/naver-blog-cli/bin/python" "$UVT/naver-blog-cli/Scripts/python.exe"; do [ -x "$c" ] && { CLI_PY="$c"; break; }; done
+    if [ -n "$CLI_PY" ] && [ -f scripts/check_blog_account.py ]; then
+      ACCT=$("$CLI_PY" scripts/check_blog_account.py "$BLOG_ID" 2>&1 | tr -d '\r'; exit "${PIPESTATUS[0]}"); ACCT_RC=$?
       case "$ACCT_RC" in
         0) echo "session: OK" ;;
         21) echo "session: WRONG_ACCOUNT — $(echo "$ACCT" | tail -1)" ;;
@@ -92,7 +102,8 @@ done
 | `session: LOGIN_NEEDED` / `MISSING` | "업로드 전까지 로그인해 두세요"라고 **경고하고 계속**(Step 4까지 진행). 이 실행은 "세션 없음 모드": Step 5는 `--dry-run`만 하고 로그인 안내 후 끝낸다 |
 | `session: WRONG_ACCOUNT` | 세션은 살아 있지만 **다른 계정**이라 `<blogId>` 블로그에 글을 쓸 수 없다(출력에 이동한 블로그 주소가 나온다). "업로드 전까지 `<blogId>` 블로그 계정으로 다시 로그인해 두세요 — 지금 세션은 다른 계정입니다"라고 **경고하고 계속**. "세션 없음 모드"와 같이 Step 5는 `--dry-run`만 한다. 로그인 안내는 `/clark-blog:blog-setup` 4단계와 같되 **그 블로그 계정으로** 로그인하라고 명시 |
 | `academy-image: MISSING` | "마무리 블록을 만들 수 없습니다 — `photos/학원소개.png`를 넣어 주세요." 안내 후 **중단**(`build_final.py`가 모든 글 끝에 붙이는 고정 자산. `photos:` 수에는 세지 않는다) |
-| `font: MISSING` | "표지(대표이미지)를 만들 수 없습니다 — Pretendard(ExtraBold·SemiBold)를 `~/Library/Fonts/`에 설치하거나 `/System/Library/Fonts/AppleSDGothicNeo.ttc`가 있는 macOS에서 실행하세요." 안내 후 **중단**(`make_cover.py`는 한글 폰트가 없으면 추측 렌더 없이 exit 2) |
+| `font: MISSING` | "표지(대표이미지)를 만들 수 없습니다 — Pretendard(ExtraBold·SemiBold)를 설치하세요. macOS: `~/Library/Fonts/`에 넣기(또는 `/System/Library/Fonts/AppleSDGothicNeo.ttc`가 있는 macOS). Windows: 글꼴 파일 우클릭 → 설치(`%LOCALAPPDATA%\Microsoft\Windows\Fonts` 또는 `C:\Windows\Fonts`), 또는 기본 맑은 고딕 Bold `C:\Windows\Fonts\malgunbd.ttf`가 있는지 확인." 안내 후 **중단**(`make_cover.py`는 한글 폰트가 없으면 추측 렌더 없이 exit 2) |
+| `PYTHONUTF8: NOT_SET` | (Windows만) "PYTHONUTF8이 영구 설정돼 있지 않아 뒤 단계의 python 명령이 이모지 출력에서 멈출 수 있습니다 — PowerShell에서 `setx PYTHONUTF8 1`을 실행한 뒤 Claude Code를 다시 시작하세요." **경고하고 계속**. 이번 실행에서는 `python3`·`uv run`·`bash scripts/…` 명령 앞에 `PYTHONUTF8=1 `을 붙인다 |
 | `uv: MISSING` | "`uv`가 없어 표지 합성·이미지 생성(`uv run --with pillow …`)을 할 수 없습니다." + `/clark-blog:blog-setup`의 uv 설치 명령 안내 후 **중단** |
 | `skill: MISSING` | 플러그인 설치가 깨짐 — 경로를 보고하고 **중단** |
 | `script: MISSING` / `script: OUTDATED` | 작업 폴더 `scripts/`가 없거나 플러그인보다 오래됨 → "`/clark-blog:blog-setup <작업 폴더>`를 다시 실행하세요(scripts는 최신본으로 갱신, knowledge는 보존)." 재실행 안내 후 **중단** |
@@ -463,7 +474,7 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage upload --jso
    ```bash
    bash scripts/naver_upload.sh work/posts/<NNN-slug>/final.md --blog-id <blogId> --dry-run 2>&1; echo "exit=$?"
    ```
-   **세션 없음 모드**(Step 0 `session: LOGIN_NEEDED`/`MISSING`/`WRONG_ACCOUNT`)면 여기서 멈춘다: dry-run 결과를 보여 주고 `/clark-blog:blog-setup` 4단계 로그인 절차(작업 폴더에서 `login_setup.py`, "로그인 상태 유지" 체크, 사람이 직접)를 안내한 뒤 "로그인 후 `/clark-blog:blog-run resume <NNN>`으로 업로드만 이어서"라고 알리고 종료 보고로 간다. `## 업로드`와 variation-log 줄은 **쓰지 않는다**.
+   **세션 없음 모드**(Step 0 `session: LOGIN_NEEDED`/`MISSING`/`WRONG_ACCOUNT`)면 여기서 멈춘다: dry-run 결과를 보여 주고 `/clark-blog:blog-setup` 4단계 로그인 절차(작업 폴더에서 `login_setup.py`, "로그인 상태 유지" 체크, 사람이 직접. Windows는 PowerShell 갈래 명령 — `Scripts\python.exe`)를 안내한 뒤 "로그인 후 `/clark-blog:blog-run resume <NNN>`으로 업로드만 이어서"라고 알리고 종료 보고로 간다. `## 업로드`와 variation-log 줄은 **쓰지 않는다**.
 2. dry-run이 exit 0일 때만 실제 임시저장(따로 호출). 창이 뜨고 수 분 걸릴 수 있다고 미리 알린다.
    ```bash
    bash scripts/naver_upload.sh work/posts/<NNN-slug>/final.md --blog-id <blogId> 2>&1; echo "exit=$?"
@@ -478,8 +489,8 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage upload --jso
 | 10 | `lint_post.py --stage upload` 실패 | Step 4의 lint FAIL id별 처리와 같음(텍스트 → B' 재개, 이미지 → Step 3/4, 빌더 → 중단·보고) |
 | 11 | 이중 검사 실패 | lint 규칙 구멍이다. 금칙어·`[[`·`[출처 필요]` 같은 텍스트 줄 → B' 재개(draft-v2.md) 후 Step 4 재실행. `출처:` 잔존·캡션 잔존·`:::place` 없음·`**#` 없음·빈 이미지 → `build_final.py` 재실행(Step 4), 그래도 같으면 빌더 버그 — 중단·보고. 어느 쪽이든 이랑에게 한 줄 보고 |
 | 12 | 이미지 문제 — 표지 `images/00-cover.png` 없음, 또는 이미지 경로가 절대경로가 아니거나 파일 없음 | 표지 없음 → Step 3의 표지 명령(`make_cover.py`, 배경이 없으면 gen_image `--only 00` 또는 실사진 배경)으로 만든 뒤 업로드 재실행. 경로 문제 → Step 4 재실행(`build_final.py`가 image-plan.md 기준 절대경로로 다시 씀) |
-| 20 | 세션 없음/만료 또는 `naver-blog-cli` 없음, 계정 확인 실패 | `/clark-blog:blog-setup` 4단계 로그인 절차 안내("로그인 상태 유지" 체크, 사람이 직접) → 끝났다고 하면 같은 명령 1회 재실행 |
-| 21 | 로그인한 계정이 `<blogId>` 블로그에 글을 쓸 수 없음(세션은 살아 있으나 다른 계정 — 글쓰기 화면이 그 계정 블로그로 이동). 임시저장은 시도하지 않았다 | 출력의 `확인 결과:` 줄(이동한 블로그 주소)을 이랑에게 보여 주고, **`<blogId>` 블로그 계정으로** `/clark-blog:blog-setup` 4단계 로그인을 다시 하도록 안내(사람이 직접, "로그인 상태 유지" 체크. 기존 `playwright-state/storage_state.json`을 그 계정 세션으로 덮어쓴다) → 끝났다고 하면 같은 명령 1회 재실행. `--blog-id`가 잘못된 경우(`knowledge/source-blogs.json`의 `own_blog`)도 함께 확인 |
+| 20 | 세션 없음/만료 또는 `naver-blog-cli` 없음, 계정 확인 실패 | `/clark-blog:blog-setup` 4단계 로그인 절차 안내("로그인 상태 유지" 체크, 사람이 직접. macOS는 터미널 `…/naver-blog-cli/bin/python`, Windows는 PowerShell `& "$(uv tool dir)\naver-blog-cli\Scripts\python.exe" "$HOME\naver-blog-cli\login_setup.py"` — 둘 다 작업 폴더에서 `NAVER_STATE`를 준 뒤) → 끝났다고 하면 같은 명령 1회 재실행 |
+| 21 | 로그인한 계정이 `<blogId>` 블로그에 글을 쓸 수 없음(세션은 살아 있으나 다른 계정 — 글쓰기 화면이 그 계정 블로그로 이동). 임시저장은 시도하지 않았다 | 출력의 `확인 결과:` 줄(이동한 블로그 주소)을 이랑에게 보여 주고, **`<blogId>` 블로그 계정으로** `/clark-blog:blog-setup` 4단계 로그인을 다시 하도록 안내(사람이 직접, "로그인 상태 유지" 체크, Windows는 PowerShell 갈래 명령. 기존 `playwright-state/storage_state.json`을 그 계정 세션으로 덮어쓴다) → 끝났다고 하면 같은 명령 1회 재실행. `--blog-id`가 잘못된 경우(`knowledge/source-blogs.json`의 `own_blog`)도 함께 확인 |
 | 30 | `create-draft-from-folder` 실패 | 출력된 CLI 문구를 이랑에게 보여 준다. `넣기 전에 걸린 것`(브라우저를 열기 전 이미지 존재·10MB 검사 실패)이면 그 파일을 고친 뒤 재시도. 그 밖(에디터 변경·세션 만료)은 네이버 임시저장 글에 중복이 생겼는지 확인을 요청한 뒤 재시도는 1회까지 |
 | 31 | 저장됐으나 목록에서 제목 확인 불가 | 이랑에게 "네이버 → 글쓰기 → 임시저장 글"에서 직접 확인 요청. 있으면 성공으로 기록 |
 
@@ -575,7 +586,7 @@ python3 scripts/lint_post.py work/posts/<NNN-slug>/final.md --stage upload --jso
 P=$(ls -d work/posts/NNN-* 2>/dev/null | head -1); echo "P=${P:-없음}"
 [ -n "$P" ] && ls -la "$P" "$P/images" 2>/dev/null
 [ -n "$P" ] && grep -n '^## \|^- ' "$P/gates.md" 2>/dev/null
-[ -n "$P" ] && [ -f "$P/lint.json" ] && python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print('lint', d['stage'], 'pass=', d['pass']);[print(' FAIL', c['id'], c['value'], c['detail']) for c in d['checks'] if c['result']=='FAIL']" "$P/lint.json"
+[ -n "$P" ] && [ -f "$P/lint.json" ] && python3 -c "import json,sys;d=json.load(open(sys.argv[1],encoding='utf-8'));print('lint', d['stage'], 'pass=', d['pass']);[print(' FAIL', c['id'], c['value'], c['detail']) for c in d['checks'] if c['result']=='FAIL']" "$P/lint.json"
 [ -n "$P" ] && grep -m1 '^요약:' "$P"/factcheck*.md 2>/dev/null
 [ -n "$P" ] && tail -n 5 "$P/upload.log" 2>/dev/null
 ```

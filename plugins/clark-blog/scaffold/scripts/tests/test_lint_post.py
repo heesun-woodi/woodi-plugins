@@ -91,6 +91,19 @@ class LintPostTest(unittest.TestCase):
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 2)
 
+    def test_cp949_console_does_not_crash(self):
+        # Windows 콘솔(cp949)에서 이모지·— 가 든 결과를 출력해도 UnicodeEncodeError 로 죽지 않는다
+        p = self.write("cp949.md", self.good.replace("**핵심**", "💡 **핵심**", 1) + "\n실기 시험장 — 안내 📞\n")
+        for args in (["--json"], []):
+            r = subprocess.run([sys.executable, SCRIPT, p, "--stage", "final", *args], capture_output=True,
+                               env=dict(os.environ, PYTHONIOENCODING="cp949"))
+            self.assertEqual(r.returncode, 1, r.stderr.decode("utf-8", "replace"))   # 금칙어 FAIL(크래시 아님)
+            self.assertNotIn(b"Traceback", r.stderr)
+            out = r.stdout.decode("utf-8")
+            if args:
+                self.assertFalse(json.loads(out)["pass"])
+            self.assertIn("forbidden", out)
+
     def test_forbidden_with_space_variant(self):
         res = self.run_lint(self.good + "\n여기가 실기 시험장 입니다\n")
         self.assertEqual(self.failed(res), ["forbidden"])

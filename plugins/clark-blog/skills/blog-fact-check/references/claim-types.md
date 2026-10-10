@@ -53,7 +53,7 @@
 - 응답 HTML에서 태그를 지우고 공백을 정리한 뒤 키워드 주변을 읽는다:
   ```bash
   curl -sL -A "Mozilla/5.0" --max-time 20 "https://www.q-net.or.kr/crf005.do?id=crf00503s02&gSite=Q&gId=&jmCd=7875" \
-    | python3 -c "import sys,re;t=re.sub(r'<[^>]+>',' ',sys.stdin.read());t=re.sub(r'\s+',' ',t);i=t.find('수수료 안내표');print(t[i:i+120])"
+    | python3 -c "import sys,re;t=re.sub(r'<[^>]+>',' ',sys.stdin.buffer.read().decode('utf-8','replace'));t=re.sub(r'\s+',' ',t);i=t.find('수수료 안내표');print(t[i:i+120])"
   ```
 - `crf00503s02`: `수수료 안내표 필기 실기 14,500원 25,200원`, 출제기준 `지게차운전기능사 (2025.1.1 ~ 2027.12.31)`, 시험일정 표는 `시험 일정이 없습니다`.
 - `crf00503s01`: `종목별 검정현황` 표 — `연도 필기(응시 합격 합격률) 실기(응시 합격 합격률)` 순. 2026-10-06 실측 2025년: 필기 110,316명 응시·81,152명 합격·73.6%, 실기 126,757명 응시·60,745명 합격·47.9%.

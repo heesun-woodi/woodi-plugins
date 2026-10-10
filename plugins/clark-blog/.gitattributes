@@ -1,0 +1,8 @@
+* text=auto eol=lf
+# Windows git(core.autocrlf=true)으로 받아도 스크립트·문서가 CRLF가 되지 않게 (bash 는 CRLF 스크립트를 못 돌린다)
+*.sh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.png binary
+*.jpg binary

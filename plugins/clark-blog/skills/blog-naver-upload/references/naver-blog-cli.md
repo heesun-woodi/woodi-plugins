@@ -22,13 +22,15 @@
 
 ```bash
 uv tool install git+https://github.com/spegas/naver-blog-cli
-# -> ~/.local/bin/naver-blog-cli 실행 파일 생성, 도구 venv: ~/.local/share/uv/tools/naver-blog-cli/
+# -> ~/.local/bin/naver-blog-cli 실행 파일 생성, 도구 venv: ~/.local/share/uv/tools/naver-blog-cli/ (macOS)
+#    Windows: %USERPROFILE%\.local\bin\naver-blog-cli.exe, 도구 venv(기본값, 미실측): %APPDATA%\uv\data\tools\naver-blog-cli\ (python·playwright는 Scripts\ 아래)
+#    어느 OS든 venv 위치는 `uv tool dir`로 확인
 ```
 
 **확정된 호출 형태: `naver-blog-cli <서브커맨드> ...`** (PATH에 `~/.local/bin`이 있어야 한다. 없으면 `~/.local/bin/naver-blog-cli`).
 
 - 항상 환경변수 `NAVER_BLOG_ID=<블로그아이디>` 필요 (`pajuclark` 등, `blog.naver.com/<여기>`).
-- Playwright Chromium은 `~/Library/Caches/ms-playwright/chromium-1243`이 이미 있어 추가 설치 불필요했다. 다른 머신에서는 `~/.local/share/uv/tools/naver-blog-cli/bin/playwright install chromium`.
+- Playwright Chromium은 (macOS 실측) `~/Library/Caches/ms-playwright/chromium-1243`이 이미 있어 추가 설치 불필요했다. 다른 머신에서는 macOS: `"$(uv tool dir)/naver-blog-cli/bin/playwright" install chromium`, Windows(PowerShell): `& "$(uv tool dir)\naver-blog-cli\Scripts\playwright.exe" install chromium`(캐시는 `%LOCALAPPDATA%\ms-playwright`).
 - **로그인 스크립트 `login_setup.py`는 `uv tool install`에 포함되지 않는다.** 저장소 루트에만 있다. 그래서 로그인용으로 저장소를 따로 clone한다 (예: `~/naver-blog-cli`, 같은 커밋). 이 clone은 로그인 한 번에만 쓰고 플러그인에는 vendoring하지 않는다.
 - 상세 호출 대안(참고): clone에서 `uv sync && uv run playwright install chromium` 후 `uv run --project <clone> naver-blog-cli ...`도 README가 안내하는 정식 방식이다. 이 플러그인은 위의 `uv tool` 방식을 쓴다.
 
@@ -37,11 +39,20 @@ uv tool install git+https://github.com/spegas/naver-blog-cli
 - 세션 파일 기본 경로: **현재 작업 디렉터리 기준 상대경로** `playwright-state/storage_state.json` (`session.py`: `NAVER_STATE` 기본값). 환경변수 `NAVER_STATE`로 바꿀 수 있고 README는 **절대경로 권장**. 그래서 CLI는 항상 작업 폴더에서 실행하거나 `NAVER_STATE=<작업폴더>/playwright-state/storage_state.json`을 준다.
 - 로그인(사람이 직접, 에이전트·스크립트는 하지 않는다):
 
+  macOS (터미널):
+
   ```bash
   cd <작업폴더>      # playwright-state/ 가 여기에 생긴다
   NAVER_STATE="$PWD/playwright-state/storage_state.json" \
-    ~/.local/share/uv/tools/naver-blog-cli/bin/python ~/naver-blog-cli/login_setup.py
+    "$(uv tool dir)/naver-blog-cli/bin/python" ~/naver-blog-cli/login_setup.py
   # 또는 clone 안에서: uv run python login_setup.py
+  ```
+
+  Windows (PowerShell — 셸 스크립트에서 쓸 때는 Git Bash에서 `uv tool dir`을 `cygpath -u`로 바꾸고 `bin/python` 대신 `Scripts/python.exe`를 찾는다):
+
+  ```powershell
+  cd <작업폴더 Windows 경로>
+  $env:NAVER_STATE = "$PWD\playwright-state\storage_state.json"; & "$(uv tool dir)\naver-blog-cli\Scripts\python.exe" "$HOME\naver-blog-cli\login_setup.py"
   ```
 
   브라우저 창이 열리면 직접 로그인한다. 인증 쿠키(`NID_AUT`/`NID_SES`)가 생기면 자동 저장 후 창을 닫는다. CAPTCHA·2차 인증·기기등록은 사람이 처리. 5분 안에 로그인하지 않으면 아무것도 저장하지 않고 끝난다.

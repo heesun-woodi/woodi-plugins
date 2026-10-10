@@ -78,7 +78,7 @@ refs = [r for r in src["design_references"] if r.get("role") != "own-style"]
 jobs = [(r["blogId"], r["logNo"], f"ref-{i}-{r['blogId']}") for i, r in enumerate(refs, 1)] if ONLY in ("ref", "all") else []
 
 def posts(flag):
-    out = subprocess.run(["python3", "scripts/fetch_posts.py", flag, own_id], capture_output=True, text=True)
+    out = subprocess.run(["python3", "scripts/fetch_posts.py", flag, own_id], capture_output=True, text=True, encoding="utf-8")
     return json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip() else []
 mine = [p for p in posts("--rss") if p["category"] == own_cat] if ONLY in ("own", "all") else []
 if ONLY in ("own", "all") and len(mine) < 10:
@@ -92,7 +92,7 @@ if ONLY in ("own", "all"):  # 레퍼런스 0(own-style)은 최신 10편 밖이�
 
 failed = []
 for blog, log, stem in jobs:
-    r = subprocess.run(["python3", "scripts/fetch_post.py", blog, log, "--json"], capture_output=True, text=True)
+    r = subprocess.run(["python3", "scripts/fetch_post.py", blog, log, "--json"], capture_output=True, text=True, encoding="utf-8")
     if r.returncode != 0:
         failed.append(f"{stem}: {r.stderr.strip()[:200]}"); continue
     data = json.loads(r.stdout)
@@ -354,7 +354,7 @@ PY
 
 ```bash
 mkdir -p work/design-system/_lintcheck && printf -- '---\ntitle: t\n---\n본문\n' > work/design-system/_lintcheck/sample.md
-python3 scripts/lint_post.py work/design-system/_lintcheck/sample.md --stage draft --json | python3 -c "import json,sys; print([c['rule'] for c in json.load(sys.stdin)['checks'] if c['id']=='chars'])"
+python3 scripts/lint_post.py work/design-system/_lintcheck/sample.md --stage draft --json | python3 -c "import json,sys; print([c['rule'] for c in json.loads(sys.stdin.buffer.read().decode('utf-8'))['checks'] if c['id']=='chars'])"
 rm -rf work/design-system/_lintcheck
 ```
 (출력 범위가 lint 블록의 `min_chars~max_chars`와 같아야 한다. lint는 `knowledge/`만 읽으므로 **갱신 모드에서는 이 확인을 8단계 4번(승인·복사) 뒤에 한다.**)

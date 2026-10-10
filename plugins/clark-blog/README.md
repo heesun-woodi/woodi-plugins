@@ -2,6 +2,10 @@
 
 클라크중장비운전학원(`pajuclark`) 네이버 블로그의 **정보성 글**을 만드는 Claude Code 플러그인입니다. 주제 리서치 → 디자인 시스템 기준 초안 → 법령·공공기관 근거 검토 → 네이버 SEO 다듬기 → 이미지·대표이미지(표지) 합성 → 업로드본 빌드 → 네이버 **임시저장**까지 진행하고, **발행은 사람(이랑)이 네이버에서 직접** 합니다. 이 플러그인은 발행 버튼을 누르지 않습니다.
 
+### 0.2.2에서 바뀐 것
+
+- **Windows 지원**: 네이티브 Windows + Git for Windows(Git Bash)에서 돌도록 고쳤습니다 — 표지 글꼴(맑은 고딕·Windows Pretendard), uv 도구 경로(`Scripts\python.exe`), Python 출력 UTF-8(`PYTHONUTF8=1`), Windows 줄바꿈(CR) 제거, 스크립트 LF 고정(`.gitattributes`), PowerShell 로그인 안내. 자세한 준비는 [Windows에서 쓰기](#windows에서-쓰기).
+
 ### 0.2.1에서 바뀐 것
 
 - **업로드 전 계정 확인**: `naver_upload.sh`가 임시저장 전에 `scripts/check_blog_account.py`로 글쓰기 화면을 열어 보고, 로그인한 계정이 대상 블로그(`own_blog.blogId`, 기본 `pajuclark`)에 글을 쓸 수 없으면 **exit 21**로 멈춥니다(글은 쓰지 않음). 다른 네이버 계정으로 로그인해 둔 상태에서 "글자 크기 버튼을 못 찾음" 같은 에디터 오류로 실패하던 문제를 미리 잡습니다. 그 블로그에 글을 쓸 수 있는 계정으로 `login_setup.py`를 다시 실행하면 됩니다.
@@ -31,20 +35,36 @@
 
 ## 사전 요구사항
 
+macOS와 Windows에서 씁니다. Windows는 먼저 [Windows에서 쓰기](#windows에서-쓰기)를 보세요. 아래 명령 중 OS마다 다른 것은 **macOS:**(터미널) / **Windows:**(PowerShell)로 나눠 적었습니다.
+
 **naver-blog-cli 설치.** 네이버 임시저장은 외부 도구 [naver-blog-cli](https://github.com/spegas/naver-blog-cli)(MIT)에 맡깁니다. uv와 Python 3.11 이상이 있으면 한 줄입니다.
 
 ```bash
 uv tool install git+https://github.com/spegas/naver-blog-cli
 ```
 
-설치되면 `naver-blog-cli`가 `~/.local/bin`에 생깁니다(PATH에 없으면 `uv tool update-shell`). 브라우저 조작용 Playwright Chromium이 없다면 `"$(uv tool dir)/naver-blog-cli/bin/playwright" install chromium`으로 설치합니다. 로그인 스크립트 `login_setup.py`는 이 설치에 들어 있지 않으므로 저장소를 한 번 clone해 둡니다: `git clone https://github.com/spegas/naver-blog-cli ~/naver-blog-cli`.
+설치되면 `naver-blog-cli`가 `~/.local/bin`(Windows는 `%USERPROFILE%\.local\bin`)에 생깁니다(PATH에 없으면 `uv tool update-shell`). 브라우저 조작용 Playwright Chromium이 없다면 설치합니다.
 
-**로그인은 1회, 사람이 직접.** **터미널**(Claude 입력창 아님)에서 작업 폴더로 이동한 뒤 아래 명령을 실행하면 브라우저가 열립니다.
+- macOS: `"$(uv tool dir)/naver-blog-cli/bin/playwright" install chromium`
+- Windows: `& "$(uv tool dir)\naver-blog-cli\Scripts\playwright.exe" install chromium`
+
+로그인 스크립트 `login_setup.py`는 이 설치에 들어 있지 않으므로 저장소를 한 번 clone해 둡니다: `git clone https://github.com/spegas/naver-blog-cli ~/naver-blog-cli`(Windows PowerShell: `git clone https://github.com/spegas/naver-blog-cli "$HOME\naver-blog-cli"`).
+
+**로그인은 1회, 사람이 직접.** **터미널**(Windows는 PowerShell, Claude 입력창 아님)에서 작업 폴더로 이동한 뒤 아래 명령을 실행하면 브라우저가 열립니다.
+
+macOS:
 
 ```bash
 cd ~/clark-blog-work
 NAVER_STATE="$PWD/playwright-state/storage_state.json" \
   "$(uv tool dir)/naver-blog-cli/bin/python" ~/naver-blog-cli/login_setup.py
+```
+
+Windows (PowerShell):
+
+```powershell
+cd ~\clark-blog-work
+$env:NAVER_STATE = "$PWD\playwright-state\storage_state.json"; & "$(uv tool dir)\naver-blog-cli\Scripts\python.exe" "$HOME\naver-blog-cli\login_setup.py"
 ```
 
 직접 로그인하고, **로그인 버튼을 누르기 전에 "로그인 상태 유지"를 체크**하세요(체크하지 않으면 몇 시간 뒤 글쓰기만 로그인 페이지로 바뀝니다). CAPTCHA·2차 인증도 사람이 처리합니다. 비밀번호는 어디에도 저장되지 않고 쿠키 파일(`playwright-state/`)만 남으며, 이 파일은 계정 접근권한 그 자체이니 공유하지 마세요. 세션이 만료되면 같은 명령을 다시 실행합니다.
@@ -59,13 +79,41 @@ GEMINI_API_KEY=여기에_키
 
 **`photos/학원소개.png`(필수).** 모든 글 끝 마무리 블록에 들어가는 학원소개 이미지(학원명·연락처·주소)입니다. 파일명 그대로 `photos/`에 두어야 하며, 이 파일만은 매 글 재사용합니다. 없으면 `/clark-blog:blog-run`이 시작하지 않습니다.
 
-**한글 폰트(표지 합성용).** `make_cover.py`는 `~/Library/Fonts/Pretendard-ExtraBold.otf`·`Pretendard-SemiBold.otf`를 쓰고, 없으면 macOS 기본 `/System/Library/Fonts/AppleSDGothicNeo.ttc`로 대신합니다. 둘 다 없으면 추측 렌더 없이 멈춥니다(Pretendard: https://github.com/orioncactus/pretendard/releases).
+**한글 폰트(표지 합성용).** `make_cover.py`는 Pretendard(`Pretendard-ExtraBold.otf`·`Pretendard-SemiBold.otf`, https://github.com/orioncactus/pretendard/releases)를 먼저 쓰고, 없으면 OS 기본 한글 글꼴로 대신합니다. 하나도 없으면 추측 렌더 없이 멈춥니다.
 
-**uv·Python·Chromium.** `uv`가 있어야 하고, 작업 폴더의 스크립트용으로 `python3` 3.11 이상이 필요합니다(스크립트는 표준 라이브러리만 쓰고, 이미지 생성은 `uv run --with google-genai --with pillow`, 표지 합성은 `uv run --with pillow`로 패키지를 그때 받습니다 — 시스템 `python3`에 Pillow를 설치할 필요가 없고, 대신 `uv`가 꼭 있어야 합니다). Playwright Chromium은 위 설치 안내를 따릅니다. `/clark-blog:blog-setup`이 이 항목들을 한 번에 진단해 줍니다.
+- macOS: Pretendard를 `~/Library/Fonts/`에 넣습니다. 없으면 `/System/Library/Fonts/AppleSDGothicNeo.ttc`.
+- Windows: Pretendard 파일을 우클릭 → "설치"(`%LOCALAPPDATA%\Microsoft\Windows\Fonts` 또는 `C:\Windows\Fonts`). 없으면 기본 맑은 고딕 Bold `C:\Windows\Fonts\malgunbd.ttf`.
+
+**uv·Python·Chromium.** `uv`가 있어야 하고, 작업 폴더의 스크립트용으로 `python3` 3.11 이상이 필요합니다(스크립트는 표준 라이브러리만 쓰고, 이미지 생성은 `uv run --with google-genai --with pillow`, 표지 합성은 `uv run --with pillow`로 패키지를 그때 받습니다 — 시스템 `python3`에 Pillow를 설치할 필요가 없고, 대신 `uv`가 꼭 있어야 합니다). Playwright Chromium은 위 설치 안내를 따릅니다. Windows의 `python3`는 [Windows에서 쓰기](#windows에서-쓰기)를 보세요. `/clark-blog:blog-setup`이 이 항목들을 한 번에 진단해 줍니다.
+
+## Windows에서 쓰기
+
+담당자 PC가 Windows여도 그대로 씁니다. Claude Code의 Bash 도구는 Windows에서 **Git Bash**로 돌고, 플러그인의 셸 블록·스크립트가 Git Bash 기준으로 macOS와 같이 동작합니다. 아래 명령은 전부 **PowerShell 창**(시작 → "PowerShell")에서 실행합니다.
+
+1. **Git for Windows (필수, 가장 먼저).** https://git-scm.com/downloads/win 에서 설치합니다. 없으면 Bash 도구가 PowerShell로 돌아 이 플러그인이 동작하지 않습니다(`/clark-blog:blog-setup`이 첫 단계에서 멈춥니다).
+2. **Claude Code.** `irm https://claude.ai/install.ps1 | iex`
+3. **uv.** `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+4. **python3.** Windows에 기본으로 보이는 `python3`는 Microsoft Store로 보내는 가짜 별칭이라 실행되지 않습니다. `uv python install 3.12 --default`로 진짜 `python`·`python3`를 만들고, 설정 → 앱 → 고급 앱 설정 → **앱 실행 별칭**에서 `python.exe`·`python3.exe`(앱 설치 관리자)를 끕니다.
+5. **PYTHONUTF8.** 한글 Windows 콘솔(cp949)에서 스크립트의 이모지 출력이 오류로 멈추지 않게 `setx PYTHONUTF8 1`을 한 번 실행합니다(새로 여는 창부터 적용 — Claude Code를 다시 엽니다).
+6. **한글 글꼴.** Pretendard를 설치하면 가장 좋고, 없어도 Windows 기본 맑은 고딕 Bold(`C:\Windows\Fonts\malgunbd.ttf`)로 표지를 만들 수 있습니다.
+7. **naver-blog-cli·Chromium·로그인.** 위 [사전 요구사항](#사전-요구사항)의 **Windows:** 명령(`…\Scripts\playwright.exe`, `…\Scripts\python.exe`)을 씁니다.
+
+그다음은 아래 "설치와 첫 사용"과 같습니다. 셋업 진단표 맨 위에 `OS: Windows(Git Bash)`가 나오면 맞게 돈 것입니다.
 
 ## 설치와 첫 사용
 
-아래 `/`로 시작하는 것들은 **터미널이 아니라 Claude Code 입력창**에 그대로 칩니다. `bash` 코드블록은 **터미널**에서 실행합니다.
+아래 `/`로 시작하는 것들은 **터미널이 아니라 Claude Code 입력창**에 그대로 칩니다. `bash` 코드블록은 **터미널**에서, `powershell` 코드블록은 **PowerShell 창**에서 실행합니다.
+
+Claude Code가 없다면 먼저 설치합니다(Windows는 Git for Windows를 먼저 — 위 "Windows에서 쓰기").
+
+- macOS:
+  ```bash
+  curl -fsSL https://claude.ai/install.sh | bash
+  ```
+- Windows (PowerShell):
+  ```powershell
+  irm https://claude.ai/install.ps1 | iex
+  ```
 
 ```
 /plugin marketplace add heesun-woodi/woodi-plugins
@@ -75,16 +123,32 @@ GEMINI_API_KEY=여기에_키
 
 플러그인을 설치한 뒤에는 아래 순서로 진행합니다.
 
-1. uv가 없다면 **터미널**에서 먼저 설치합니다.
+1. uv가 없다면 **터미널**(Windows는 PowerShell)에서 먼저 설치합니다.
+
+   macOS:
 
    ```bash
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
-2. **터미널**에서 작업 폴더를 만들고, 그 폴더에서 Claude Code를 엽니다. 작업 폴더는 **플러그인 저장소 밖**이어야 하고, 글 작업을 할 때는 **매번** 이 폴더에서 Claude Code를 엽니다.
+   Windows:
+
+   ```powershell
+   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   ```
+
+2. **터미널**(Windows는 PowerShell)에서 작업 폴더를 만들고, 그 폴더에서 Claude Code를 엽니다. 작업 폴더는 **플러그인 저장소 밖**이어야 하고, 글 작업을 할 때는 **매번** 이 폴더에서 Claude Code를 엽니다.
+
+   macOS:
 
    ```bash
    mkdir -p ~/clark-blog-work && cd ~/clark-blog-work && claude
+   ```
+
+   Windows:
+
+   ```powershell
+   mkdir -Force ~\clark-blog-work; cd ~\clark-blog-work; claude
    ```
 
 3. Claude Code 입력창에서 셋업합니다.
@@ -94,7 +158,7 @@ GEMINI_API_KEY=여기에_키
    ```
 
    환경(uv·Python·Chromium·naver-blog-cli·네이버 세션·`GEMINI_API_KEY`)을 진단해 표로 보여 주고, 빠진 항목마다 실행할 명령을 출력합니다. 이어서 `scaffold/`를 작업 폴더로 복사합니다. `scripts/`는 매번 최신본으로 갱신하고, `knowledge/`는 보존합니다(이랑이 고친 파일은 덮어쓰지 않고, 아직 채워지지 않은 스텁만 교체).
-4. 진단표가 알려 준 설치·로그인 명령은 **터미널에서** 실행합니다(Claude 입력창이 아님). 네이버 로그인은 **1회, 사람이 직접** 하고 "로그인 상태 유지"를 반드시 체크합니다(위 "로그인은 1회" 참고). `.env`에 `GEMINI_API_KEY`를 채웁니다(채팅에 키를 붙여넣지 마세요).
+4. 진단표가 알려 준 설치·로그인 명령은 **터미널(Windows는 PowerShell)에서** 실행합니다(Claude 입력창이 아님). 진단표는 OS에 맞는 갈래만 보여 줍니다. 네이버 로그인은 **1회, 사람이 직접** 하고 "로그인 상태 유지"를 반드시 체크합니다(위 "로그인은 1회" 참고). `.env`에 `GEMINI_API_KEY`를 채웁니다(채팅에 키를 붙여넣지 마세요).
 5. Claude Code 입력창에서 `/clark-blog:blog-setup ~/clark-blog-work`를 다시 실행해 모든 항목이 "확인됨"인지 봅니다.
 6. `knowledge/design-system.md`(초기값)와 `knowledge/academy-profile.md`를 한 번 훑어보고, 고칠 것이 있으면 작업 폴더에서 직접 고칩니다. 레퍼런스를 추가했다면 `blog-design-system` 스킬로 문서를 갱신합니다.
 7. 글을 시작합니다.
@@ -204,9 +268,9 @@ work/
 
 **이미지 생성이 429(쿼터 초과)로 멈출 때.** `gen_image.py`가 `APIError 429`와 함께 남은 슬롯을 중단했다면, Gemini 이미지 모델을 쓸 수 없는 키입니다. https://aistudio.google.com/apikey 에서 그 키의 Google Cloud 프로젝트에 결제(Billing)가 설정돼 있는지 확인하세요. 무료 키는 기다려도 풀리지 않습니다. 결제를 설정한 뒤 Step 3(이미지)부터 다시 진행합니다.
 
-**세션 만료.** 몇 시간 뒤 글쓰기만 로그인 페이지로 바뀌거나 공인 IP가 바뀌면 세션이 풀립니다. "로그인 상태 유지"를 체크하지 않은 경우가 가장 흔합니다. 터미널에서 작업 폴더로 이동해 위 로그인 명령(`login_setup.py`)을 다시 실행하고, 로그인이 끝나면 `/clark-blog:blog-run resume <NNN>`으로 업로드만 이어갑니다. 세션이 없을 때 `/clark-blog:blog-run`은 Step 4까지 진행하고 업로드만 미룹니다.
+**세션 만료.** 몇 시간 뒤 글쓰기만 로그인 페이지로 바뀌거나 공인 IP가 바뀌면 세션이 풀립니다. "로그인 상태 유지"를 체크하지 않은 경우가 가장 흔합니다. 터미널(Windows는 PowerShell)에서 작업 폴더로 이동해 위 로그인 명령(`login_setup.py`, OS별 갈래)을 다시 실행하고, 로그인이 끝나면 `/clark-blog:blog-run resume <NNN>`으로 업로드만 이어갑니다. 세션이 없을 때 `/clark-blog:blog-run`은 Step 4까지 진행하고 업로드만 미룹니다.
 
-**다른 계정으로 로그인돼 있을 때 (exit 21 · `session: WRONG_ACCOUNT`).** 세션 파일(`playwright-state/storage_state.json`)이 테스트 계정 등 다른 계정의 것이면 `naver-blog-cli check-session`은 "글쓰기 가능"으로 통과하지만, 실제 글쓰기 화면은 그 계정의 블로그로 넘어가 임시저장이 `…을 못 찾음`으로 실패합니다. 그래서 업로드 전에 `scripts/check_blog_account.py`가 글쓰기 화면이 대상 블로그로 열리는지 확인합니다(글은 쓰지 않음). 걸리면 터미널에서 작업 폴더로 이동해 위 로그인 명령을 **대상 블로그 계정으로** 다시 실행하세요(세션 파일이 새 계정 것으로 바뀝니다).
+**다른 계정으로 로그인돼 있을 때 (exit 21 · `session: WRONG_ACCOUNT`).** 세션 파일(`playwright-state/storage_state.json`)이 테스트 계정 등 다른 계정의 것이면 `naver-blog-cli check-session`은 "글쓰기 가능"으로 통과하지만, 실제 글쓰기 화면은 그 계정의 블로그로 넘어가 임시저장이 `…을 못 찾음`으로 실패합니다. 그래서 업로드 전에 `scripts/check_blog_account.py`가 글쓰기 화면이 대상 블로그로 열리는지 확인합니다(글은 쓰지 않음). 걸리면 터미널(Windows는 PowerShell)에서 작업 폴더로 이동해 위 로그인 명령을 **대상 블로그 계정으로** 다시 실행하세요(세션 파일이 새 계정 것으로 바뀝니다).
 
 **네이버가 에디터를 개편했을 때.** `naver-blog-cli`가 `…을 못 찾음`을 계속 내면 CLI의 셀렉터가 낡은 것입니다. 이 플러그인은 셀렉터·Playwright 코드를 새로 쓰지 않으므로 `naver-blog-cli`의 업데이트를 기다리는 것이 기본입니다. 급할 때는 이랑 승인 아래 aside(AI 브라우저)에 `final.md`와 `images/`를 주고 "임시저장까지만, 발행 금지"로 수동 지시하는 폴백이 있습니다(로그인·2단계 인증은 이 경우에도 이랑이 합니다).
 
@@ -214,4 +278,4 @@ work/
 
 ## 2차 범위
 
-지금 버전(0.2.1)에 없는 것: 스케줄 실행(정해진 시간에 주제 리서치·초안까지 자동으로 돌리기), OpenAI 이미지 폴백(Gemini가 안 될 때), 글 반응(조회·공감)을 읽어 주제 후보에 가중치를 주는 기능. 글을 발행하는 자동화는 계정 안전상 범위에 넣지 않습니다.
+지금 버전(0.2.2)에 없는 것: 스케줄 실행(정해진 시간에 주제 리서치·초안까지 자동으로 돌리기), OpenAI 이미지 폴백(Gemini가 안 될 때), 글 반응(조회·공감)을 읽어 주제 후보에 가중치를 주는 기능. 글을 발행하는 자동화는 계정 안전상 범위에 넣지 않습니다.

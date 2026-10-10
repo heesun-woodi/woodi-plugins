@@ -100,6 +100,7 @@ uv run --with pillow scripts/make_cover.py --bg $P/images/00-bg.png --title "줄
 ```
 
 - 표지 합성은 로컬 Pillow라 비용 0. 이 머신 python3에는 Pillow가 없으므로 **반드시 `uv run --with pillow`** 로 돌린다.
+- 표지 글꼴: Pretendard(ExtraBold·SemiBold)를 먼저 쓰고, 없으면 OS 기본 한글 글꼴(macOS AppleSDGothicNeo, Windows 맑은 고딕 Bold `malgunbd.ttf`)로 대신한다. 하나도 없으면 make_cover.py가 추측 렌더 없이 exit 2 → 생성하지 말고 요약에 글꼴 없음으로 적어 메인에 넘긴다(설치 안내는 `/clark-blog:blog-setup`).
 - 배경을 실사진으로 쓰려면 `--bg photos/<파일>`(이 경우 gen_image는 `--only <ai 슬롯 번호(쉼표)>`로 ai 행만 생성한다 — 옵션 없이 실행하면 00 행도 생성됨).
 - 표지 재생성 요청이 줄바꿈·배지 문구만이면 make_cover.py만 다시(비용 0), 배경이면 `gen_image.py --only 00` 뒤 make_cover.py를 다시 돌린다.
 

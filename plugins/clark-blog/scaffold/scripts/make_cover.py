@@ -12,13 +12,19 @@
 - 레이아웃: 배경 중앙 1:1 크롭 → 하단 40% 어두운 그라데이션 → 좌상단 브랜드 배지(진녹색 #1F5E3A)
   → 제목 2~3줄(흰 글자 + 검정 외곽선 + 반투명 진녹색 패널) → --sub 작은 줄 → 하단 전화번호.
   전체는 중앙 80% 안전 영역 안. `|`로 받은 줄을 우선 쓰고, 한 줄이 패널 폭을 넘으면 글리프 폭 기준으로 자동 줄바꿈.
-- 폰트: --font-dir → ~/Library/Fonts/Pretendard-{ExtraBold,SemiBold}.otf → /System/Library/Fonts/AppleSDGothicNeo.ttc(Bold).
-  모두 없으면 추측 렌더 없이 exit 2. --no-system-fonts는 마지막 두 곳(시스템 탐색)을 끈다.
+- 폰트: --font-dir → ~/Library/Fonts/Pretendard-{ExtraBold,SemiBold}.otf
+  → %LOCALAPPDATA%\\Microsoft\\Windows\\Fonts\\Pretendard-*.otf(Windows 사용자 글꼴) → %WINDIR%\\Fonts\\Pretendard-*.otf
+  → /System/Library/Fonts/AppleSDGothicNeo.ttc(Bold·SemiBold) → %WINDIR%\\Fonts\\malgunbd.ttf(제목)·malgun.ttf(보조, 맑은 고딕).
+  환경변수가 없으면 그 후보는 건너뛴다. 모두 없으면 추측 렌더 없이 exit 2.
+  --no-system-fonts는 --font-dir 말고는 모두(사용자·시스템 글꼴 폴더) 끈다.
 종료 코드: 0=성공(또는 --dry-run), 2=사용 오류·폰트 없음·배경 없음.
 """
 import argparse
 import os
 import sys
+for _s in (sys.stdout, sys.stderr):  # Windows 콘솔(cp949)에서도 한글·이모지 출력이 죽지 않게
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
 
 try:
     from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -30,7 +36,9 @@ TITLE_FONT = "Pretendard-ExtraBold.otf"
 SUB_FONT = "Pretendard-SemiBold.otf"
 USER_FONT_DIR = os.path.expanduser("~/Library/Fonts")
 APPLE_TTC = "/System/Library/Fonts/AppleSDGothicNeo.ttc"
-NO_FONT_MSG = "한글 폰트 없음 — Pretendard 설치 또는 --font-dir"
+MALGUN_TITLE, MALGUN_SUB = "malgunbd.ttf", "malgun.ttf"  # Windows 맑은 고딕(굵게·보통)
+NO_FONT_MSG = ("한글 폰트 없음 — Pretendard 설치 또는 --font-dir "
+               "(Windows: Pretendard 설치 또는 맑은 고딕(C:\\Windows\\Fonts\\malgunbd.ttf) 확인)")
 SAFE = 0.10  # 한쪽 여백 비율(중앙 80% 안전 영역)
 
 
@@ -46,20 +54,47 @@ def _ttc_index(path, want):
     return None
 
 
-def find_fonts(font_dir=None, system=True):
+def font_candidates(font_dir=None, system=True, env=None):
+    """탐색 순서대로 (제목 후보, 보조 후보) 목록. 후보는 (경로, face) — face는 index(int) 또는 TTC 스타일 이름 튜플.
+
+    파일 존재 여부는 보지 않는다(find_fonts가 본다). 환경변수(LOCALAPPDATA·WINDIR)가 없으면 그 후보는 뺀다.
+    """
+    env = os.environ if env is None else env
+    dirs = [font_dir] if font_dir else []
+    win = env.get("WINDIR") or env.get("SystemRoot")
+    if system:
+        dirs.append(USER_FONT_DIR)
+        if env.get("LOCALAPPDATA"):
+            dirs.append(os.path.join(env["LOCALAPPDATA"], "Microsoft", "Windows", "Fonts"))
+        if win:
+            dirs.append(os.path.join(win, "Fonts"))
+    title = [(os.path.join(d, TITLE_FONT), 0) for d in dirs]
+    sub = [(os.path.join(d, SUB_FONT), 0) for d in dirs]
+    if system:
+        title.append((APPLE_TTC, ("Bold",)))
+        sub.append((APPLE_TTC, ("SemiBold", "Bold")))
+        if win:
+            title.append((os.path.join(win, "Fonts", MALGUN_TITLE), 0))
+            sub.append((os.path.join(win, "Fonts", MALGUN_SUB), 0))
+    return title, sub
+
+
+def _pick(cands):
+    for path, face in cands:
+        if os.path.isfile(path):
+            if isinstance(face, tuple):  # TTC: 스타일 이름으로 index를 찾는다
+                face = next((i for i in (_ttc_index(path, w) for w in face) if i is not None), 0)
+            return path, face
+    return None
+
+
+def find_fonts(font_dir=None, system=True, env=None):
     """(제목 폰트 경로+index, 보조 폰트 경로+index) 반환. 없으면 None."""
-    dirs = ([font_dir] if font_dir else []) + ([USER_FONT_DIR] if system else [])
-    title = sub = None
-    for d in dirs:
-        t, s = os.path.join(d, TITLE_FONT), os.path.join(d, SUB_FONT)
-        title = title or ((t, 0) if os.path.isfile(t) else None)
-        sub = sub or ((s, 0) if os.path.isfile(s) else None)
-    if system and os.path.isfile(APPLE_TTC):
-        title = title or ((APPLE_TTC, _ttc_index(APPLE_TTC, "Bold") or 0))
-        sub = sub or ((APPLE_TTC, _ttc_index(APPLE_TTC, "SemiBold") or _ttc_index(APPLE_TTC, "Bold") or 0))
+    title_c, sub_c = font_candidates(font_dir, system, env)
+    title = _pick(title_c)
     if not title:
         return None
-    return title, sub or title
+    return title, _pick(sub_c) or title
 
 
 def load(spec, px):
@@ -184,7 +219,7 @@ def main(argv=None):
     ap.add_argument("--out", required=True, help="출력 PNG 경로(예: images/00-cover.png)")
     ap.add_argument("--size", type=int, default=1000, help="한 변 픽셀(기본 1000)")
     ap.add_argument("--font-dir", metavar="DIR", help="Pretendard-ExtraBold.otf·SemiBold.otf가 든 폴더(우선 탐색)")
-    ap.add_argument("--no-system-fonts", action="store_true", help="~/Library/Fonts·시스템 폰트 탐색을 끔")
+    ap.add_argument("--no-system-fonts", action="store_true", help="--font-dir 외의 사용자·시스템 폰트 탐색(~/Library/Fonts·%%LOCALAPPDATA%%·%%WINDIR%%·AppleSDGothicNeo)을 끔")
     ap.add_argument("--dry-run", action="store_true", help="폰트·줄·폭·출력 경로만 출력하고 파일을 쓰지 않음")
     try:
         a = ap.parse_args(argv)

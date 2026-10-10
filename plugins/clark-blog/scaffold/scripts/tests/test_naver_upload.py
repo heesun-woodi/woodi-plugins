@@ -247,6 +247,92 @@ class NaverUploadTest(unittest.TestCase):
         self.assertIn("계정 확인용 python", p.stderr)
         self.assertNotIn("create-draft-from-folder", self.stub_calls())
 
+    def _windows_uv_layout(self):
+        # uv tool 이 Windows 레이아웃(naver-blog-cli/Scripts/python.exe)일 때
+        unix_py = os.path.join(self.uvdir, "naver-blog-cli", "bin", "python")
+        win_dir = os.path.join(self.uvdir, "naver-blog-cli", "Scripts")
+        os.makedirs(win_dir)
+        shutil.move(unix_py, os.path.join(win_dir, "python.exe"))
+
+    def test_windows_uv_layout_finds_scripts_python(self):
+        self._windows_uv_layout()
+        p = self.run_script()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        calls = self.stub_calls()
+        self.assertIn("account-check check_blog_account.py pajuclark", calls)
+        self.assertIn("create-draft-from-folder", calls)
+
+    def test_cygpath_converts_paths_when_present(self):
+        # Git Bash 흉내: cygpath 가 있으면 uv tool dir 는 -u, naver-blog-cli 에 넘기는 $WORK 는 -m 으로 바꾼다
+        self._windows_uv_layout()
+        cyg = os.path.join(self.bin, "cygpath")
+        with open(cyg, "w", encoding="utf-8") as f:
+            f.write('#!/usr/bin/env bash\necho "cygpath $1 $2" >> "$STUB_LOG"\nprintf \'%s\\n\' "$2"\n')
+        os.chmod(cyg, 0o755)
+        p = self.run_script()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        calls = self.stub_calls()
+        self.assertIn("cygpath -u " + self.uvdir, calls)
+        self.assertRegex(calls, r"cygpath -m \S*naver-upload\.")
+        self.assertIn("account-check check_blog_account.py pajuclark", calls)
+        self.assertIn("장소: 클라크중장비운전학원 양주시 백석읍", p.stdout)
+
+    def test_crlf_cli_output_tolerated(self):
+        # Windows 네이티브 프로그램(naver-blog-cli·도구 python) 출력의 CR 이 판정·로그·안내에 섞이지 않는다
+        for stub in (os.path.join(self.bin, "naver-blog-cli"), os.path.join(self.uvdir, "naver-blog-cli", "bin", "python")):
+            with open(stub, encoding="utf-8") as f:
+                src = f.read()
+            with open(stub, "w", encoding="utf-8") as f:
+                f.write(src.replace("#!/usr/bin/env bash\n",
+                                    "#!/usr/bin/env bash\nexec > >(awk '{printf \"%s\\r\\n\", $0}')\n", 1))
+        p = self.run_script()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("장소: 클라크중장비운전학원 양주시 백석읍\n", p.stdout)
+        self.assertNotIn("\r", p.stdout + p.stderr)
+        with open(os.path.join(self.post, "upload.log"), encoding="utf-8", newline="") as f:
+            self.assertNotIn("\r", f.read())
+        p = self.run_script(STUB_ACCOUNT="other")
+        self.assertEqual(p.returncode, 21, p.stderr)
+        self.assertNotIn("\r", p.stderr)
+
+    def _stub(self, name, body):
+        path = os.path.join(self.bin, name)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("#!/usr/bin/env bash\n" + body)
+        os.chmod(path, 0o755)
+
+    def test_login_hint_powershell_on_git_bash(self):
+        # Git Bash(uname MINGW*)면 PowerShell 명령, 작업 폴더는 cygpath -w 로 실제 Windows 경로
+        self._stub("uname", 'echo "MINGW64_NT-10.0-26100"\n')
+        self._stub("cygpath", 'if [ "$1" = -w ]; then echo "C:\\\\Users\\\\me\\\\clark"; else printf \'%s\\n\' "$2"; fi\n')
+        ps = ('PowerShell에서: cd "C:\\Users\\me\\clark"; $env:NAVER_STATE = "$PWD\\playwright-state\\storage_state.json"; '
+              '& "$(uv tool dir)\\naver-blog-cli\\Scripts\\python.exe" "$HOME\\naver-blog-cli\\login_setup.py"')
+        p = self.run_script(STUB_SESSION="fail")
+        self.assertEqual(p.returncode, 20, p.stderr)
+        self.assertIn(ps, p.stderr)
+        self.assertNotIn("bin/python", p.stderr)
+        p = self.run_script(STUB_ACCOUNT="other")
+        self.assertEqual(p.returncode, 21, p.stderr)
+        self.assertIn(ps, p.stderr)
+
+    def test_login_hint_bash_on_macos(self):
+        self._stub("uname", 'echo "Darwin"\n')
+        p = self.run_script(STUB_SESSION="fail")
+        self.assertEqual(p.returncode, 20, p.stderr)
+        self.assertIn('NAVER_STATE="$PWD/playwright-state/storage_state.json" "$(uv tool dir)/naver-blog-cli/bin/python" '
+                      "~/naver-blog-cli/login_setup.py", p.stderr)
+        self.assertNotIn("PowerShell", p.stderr)
+
+    def test_lint_failure_summary_strips_cr(self):
+        # lint 출력(Windows python 의 \r\n)이 FAIL 요약에 CR 로 남지 않는다
+        lp = os.path.join(self.root, "scripts", "lint_post.py")
+        with open(lp, "w", encoding="utf-8") as f:
+            f.write('import sys\nsys.stdout.write("not json\\r\\n")\nsys.stderr.write("lint 오류\\r\\n")\nsys.exit(1)\n')
+        p = self.run_script("--dry-run")
+        self.assertEqual(p.returncode, 10, p.stderr)
+        self.assertIn("  | lint 오류", p.stderr)
+        self.assertNotIn("\r", p.stderr)
+
     def test_success_flow(self):
         p = self.run_script("--blog-id", "myblog")
         self.assertEqual(p.returncode, 0, p.stderr)

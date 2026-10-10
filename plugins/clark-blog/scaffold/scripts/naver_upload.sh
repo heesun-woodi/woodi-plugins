@@ -9,6 +9,7 @@
 # naver-blog-cli 는 실패해도 exit 0 이므로 종료 코드가 아니라 stdout 문구로 판정한다.
 set -u
 export NAVER_BLOG_READONLY=1   # 발행·삭제 서브커맨드를 CLI에서 제거 — 임시저장까지만
+export PYTHONUTF8=1            # Windows(cp949)에서도 python 입출력·파일을 UTF-8로
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BLOG_ID="pajuclark"
@@ -36,6 +37,10 @@ POSTDIR="$(cd "$(dirname "$FINAL")" && pwd)"
 LOG="$POSTDIR/upload.log"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/naver-upload.XXXXXX")" || { echo "오류: 임시 폴더를 만들 수 없습니다." >&2; exit 2; }
 trap 'rm -rf "$WORK"' EXIT
+
+# Windows(Git Bash)에서 네이티브 프로그램에 넘길 경로는 C:/... 꼴로 (cygpath 없으면 그대로)
+winpath() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
+nocr() { printf '%s' "${1//$'\r'/}"; }   # Windows 프로그램 출력의 CR 제거
 
 log() { printf '%s | %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG"; }
 die() { code="$1"; shift; echo "$*" >&2; log "exit $code | $(printf '%s' "$*" | head -n1)"; exit "$code"; }
@@ -91,11 +96,11 @@ meta = {"title": fm.get("title", ""), "category": fm.get("category", ""), "tags"
         "images": len(imgs), "lines": len(btxt.splitlines()),
         "bad_images": [p for p in imgs if not os.path.isabs(p)],
         "missing_images": [p for p in imgs if os.path.isabs(p) and not os.path.isfile(p)]}
-open(out + ".md", "w", encoding="utf-8").write(btxt)
+open(out + ".md", "w", encoding="utf-8", newline="\n").write(btxt)
 json.dump(meta, open(out + ".json", "w", encoding="utf-8"), ensure_ascii=False)
 '
-JGET='import json,sys; v=json.load(open(sys.argv[1]))[sys.argv[2]]; print("\n".join(v) if isinstance(v,list) else v)'
-meta() { python3 -c "$JGET" "$WORK/upload-meta.json" "$1"; }
+JGET='import json,sys; v=json.load(open(sys.argv[1], encoding="utf-8"))[sys.argv[2]]; print("\n".join(v) if isinstance(v,list) else v)'
+meta() { local v; v="$(python3 -c "$JGET" "$WORK/upload-meta.json" "$1")"; nocr "$v"; }
 
 log "시작 | $FINAL | blog-id=$BLOG_ID | dry-run=$DRY"
 
@@ -116,10 +121,11 @@ except Exception:
     print("  - lint 출력을 해석하지 못했습니다")
     sys.exit(1)')" || FAILS="$FAILS
 $(sed 's/^/  | /' "$WORK/lint.err")"
+  FAILS="$(nocr "$FAILS")"
   die 10 "lint_post.py 실패 — 업로드를 시작하지 않습니다.
 $FAILS"
 fi
-PRE="$(python3 -c "$PYH" "$HERE" "$FINAL" precheck "$WORK/upload-meta")"; PRE_RC=$?
+PRE="$(python3 -c "$PYH" "$HERE" "$FINAL" precheck "$WORK/upload-meta")"; PRE_RC=$?; PRE="$(nocr "$PRE")"
 if [ "$PRE_RC" -ne 0 ]; then
   die 11 "이중 검사 실패 — 업로드를 시작하지 않습니다.
 $(printf '%s\n' "$PRE" | sed 's/^/  - /')"
@@ -159,27 +165,35 @@ if [ "$DRY" -eq 1 ]; then
 fi
 
 # 2) 세션 확인 (종료 코드 아닌 stdout 문구로 판정; dry-run 은 위에서 이미 종료)
+# 직접 로그인 안내: Windows(Git Bash)는 PowerShell 명령(작업 폴더를 실제 Windows 경로로), 그 밖은 bash 명령
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*) WD="$(cygpath -w "$PWD" 2>/dev/null)" || WD="$PWD"; [ -n "$WD" ] || WD="$PWD"
+    LOGIN_CMD="PowerShell에서: cd \"$WD\"; \$env:NAVER_STATE = \"\$PWD\\playwright-state\\storage_state.json\"; & \"\$(uv tool dir)\\naver-blog-cli\\Scripts\\python.exe\" \"\$HOME\\naver-blog-cli\\login_setup.py\"" ;;
+  *) LOGIN_CMD="NAVER_STATE=\"\$PWD/playwright-state/storage_state.json\" \"\$(uv tool dir)/naver-blog-cli/bin/python\" ~/naver-blog-cli/login_setup.py" ;;
+esac
 if ! command -v naver-blog-cli >/dev/null 2>&1; then
   die 20 "naver-blog-cli 를 찾을 수 없습니다. /clark-blog:blog-setup 으로 설치를 확인하세요."
 fi
-SESS="$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli check-session 2>&1)"
+SESS="$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli check-session 2>&1)"; SESS="$(nocr "$SESS")"
 case "$SESS" in
   "세션 정상"*"글쓰기 가능"*) ;;
   *) die 20 "네이버 세션을 사용할 수 없습니다: $(printf '%s' "$SESS" | head -n1)
 작업 폴더에서 터미널로 직접 로그인하세요 (\"로그인 상태 유지\" 체크):
-  NAVER_STATE=\"\$PWD/playwright-state/storage_state.json\" \"\$(uv tool dir)/naver-blog-cli/bin/python\" ~/naver-blog-cli/login_setup.py" ;;
+  $LOGIN_CMD" ;;
 esac
 
 # 2b) 계정 확인 — check-session 은 다른 계정 세션이어도 "글쓰기 가능"으로 통과한다(글쓰기 화면이 그 계정
 #     블로그 홈으로 리다이렉트돼도 #mainFrame 이 붙으므로). naver-blog-cli 의 python 으로 글쓰기 화면 URL 의
 #     블로그 주인을 본다. 글은 쓰지 않는다.
 LOGIN_HINT="작업 폴더에서 터미널로 ${BLOG_ID} 블로그 계정으로 직접 로그인하세요 (\"로그인 상태 유지\" 체크):
-  NAVER_STATE=\"\$PWD/playwright-state/storage_state.json\" \"\$(uv tool dir)/naver-blog-cli/bin/python\" ~/naver-blog-cli/login_setup.py"
-CLI_PY="$(uv tool dir 2>/dev/null)/naver-blog-cli/bin/python"
-if ! command -v uv >/dev/null 2>&1 || [ ! -x "$CLI_PY" ]; then
-  die 20 "계정 확인용 python($CLI_PY)을 찾을 수 없습니다 — naver-blog-cli 를 uv tool 로 설치했는지 /clark-blog:blog-setup 으로 확인하세요."
+  $LOGIN_CMD"
+# naver-blog-cli 도구 python: macOS·Linux 는 bin/python, Windows 는 Scripts/python.exe
+UVT="$(uv tool dir 2>/dev/null)"; command -v cygpath >/dev/null 2>&1 && [ -n "$UVT" ] && UVT="$(cygpath -u "$UVT")"
+CLI_PY=""; for c in "$UVT/naver-blog-cli/bin/python" "$UVT/naver-blog-cli/Scripts/python.exe"; do [ -x "$c" ] && { CLI_PY="$c"; break; }; done
+if ! command -v uv >/dev/null 2>&1 || [ -z "$CLI_PY" ]; then
+  die 20 "계정 확인용 python($UVT/naver-blog-cli/bin/python 또는 Scripts/python.exe)을 찾을 수 없습니다 — naver-blog-cli 를 uv tool 로 설치했는지 /clark-blog:blog-setup 으로 확인하세요."
 fi
-ACCT="$("$CLI_PY" "$HERE/check_blog_account.py" "$BLOG_ID" 2>&1)"; ACCT_RC=$?
+ACCT="$("$CLI_PY" "$(winpath "$HERE/check_blog_account.py")" "$BLOG_ID" 2>&1)"; ACCT_RC=$?; ACCT="$(nocr "$ACCT")"
 case "$ACCT_RC" in
   0) log "계정 확인 | $(printf '%s' "$ACCT" | tail -n1)" ;;
   21) die 21 "로그인한 계정이 ${BLOG_ID} 블로그에 글을 쓸 수 없음 — 그 블로그 계정으로 login_setup.py 다시 실행
@@ -190,7 +204,8 @@ $LOGIN_HINT" ;;
 esac
 
 # 6) 임시저장 (create-draft-from-folder: 표지를 본문 맨 앞에 넣고 대표 지정)
-CREATE="$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli create-draft-from-folder "$WORK" --markdown-file body.md --title="$TITLE" --category="$CATEGORY" --tags="$TAGS" 2>&1)"
+CREATE="$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli create-draft-from-folder "$(winpath "$WORK")" --markdown-file body.md --title="$TITLE" --category="$CATEGORY" --tags="$TAGS" 2>&1)"
+CREATE="$(nocr "$CREATE")"
 case "$CREATE" in
   *"넣기 전에 걸린 것"*|*"작성 실패"*|*"임시저장이 안 된 것 같습니다"*|*"못 찾음"*) CREATE_BAD=1 ;;
   *"임시저장 완료"*) CREATE_BAD=0 ;;
@@ -215,7 +230,7 @@ elif ! { [[ "$CREATE" == *"0:표지"* ]] && [[ "$CREATE" =~ (^|[^[:alnum:]])대�
   echo "경고: 대표이미지 지정 확인 불가 — 임시저장 글에서 확인" >&2
   log "경고 | 대표이미지 지정 확인 불가 (0:표지 또는 대표 지정 노트 없음)"
 fi
-PLACE_PICKED="$(printf '%s\n' "$CREATE" | perl -CSD -Mutf8 -ne 'if (/\d+:장소\((.*?)\)(?:, |\])/) { print $1; exit }')"
+PLACE_PICKED="$(printf '%s\n' "$CREATE" | python3 -c 'import re,sys; m=re.search(r"\d+:장소\((.*?)\)(?:, |\])", sys.stdin.buffer.read().decode("utf-8", "replace")); sys.stdout.write(m.group(1) if m else "")')"
 if [ -z "$PLACE_PICKED" ]; then
   echo "경고: 장소 카드 확인 필요 — 장소(…) 노트 없음 또는 빈 값" >&2
   log "경고 | 장소 카드 확인 필요: 장소 노트 없음/빈 값"
@@ -228,7 +243,7 @@ else
 fi
 
 # 7) 확인
-DRAFTS="$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli list-drafts 2>&1)"
+DRAFTS="$(NAVER_BLOG_ID="$BLOG_ID" naver-blog-cli list-drafts 2>&1)"; DRAFTS="$(nocr "$DRAFTS")"
 HIT="$(printf '%s\n' "$DRAFTS" | grep -F -- "$TITLE" | head -n1)"
 if [ -z "$HIT" ]; then
   die 31 "임시저장 목록에서 제목을 확인하지 못했습니다. 저장은 됐을 수 있으니 네이버에서 직접 확인하세요 (글쓰기 → 임시저장 글)."
